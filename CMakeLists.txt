@@ -56,18 +56,23 @@ set(NLOHMANN_JSON_INCLUDE_DIR ${PROJECT_BINARY_DIR}/nlohmann_json/include)
 
 #
 #  Metall
-#
+#set(METALL_WORK_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-work)
+set(METALL_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-src)
+set(METALL_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-build)
+set(METALL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-install)
 ExternalProject_Add(metall
-    GIT_REPOSITORY https://github.com/LLNL/metall.git
-    GIT_TAG v0.5
-    CONFIGURE_COMMAND ""
-    GIT_PROGRESS 1
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
-    #LOG_DOWNLOAD 1
-    )
-ExternalProject_Get_Property(metall source_dir)
-set(METALL_INCLUDE_DIR ${source_dir}/include)
+        GIT_REPOSITORY https://github.com/LLNL/metall.git
+        GIT_TAG master
+        SOURCE_DIR ${METALL_SOURCE_DIR}
+        BINARY_DIR ${METALL_BUILD_DIR}
+        CMAKE_ARGS -DINSTALL_HEADER_ONLY=ON -DCMAKE_INSTALL_PREFIX=${METALL_INSTALL_DIR}
+        )
+set(METALL_INCLUDE_DIR ${METALL_INSTALL_DIR}/include)
+find_package(Threads REQUIRED)
+
+#
+# Boost
+find_package(Boost 1.64 REQUIRED)
 
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
