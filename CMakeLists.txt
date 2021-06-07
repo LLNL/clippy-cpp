@@ -56,7 +56,7 @@ set(NLOHMANN_JSON_INCLUDE_DIR ${PROJECT_BINARY_DIR}/nlohmann_json/include)
 
 #
 #  Metall
-set(METALL_WORK_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-work)
+#set(METALL_WORK_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-work)
 set(METALL_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-src)
 set(METALL_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-build)
 set(METALL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-install)
@@ -68,6 +68,7 @@ ExternalProject_Add(metall
         CMAKE_ARGS -DINSTALL_HEADER_ONLY=ON -DCMAKE_INSTALL_PREFIX=${METALL_INSTALL_DIR}
         )
 set(METALL_INCLUDE_DIR ${METALL_INSTALL_DIR}/include)
+find_package(Threads REQUIRED)
 
 #
 # Boost
