@@ -6,6 +6,7 @@
 # Works with 3.11 and tested through 3.15 (not tested yet)
 cmake_minimum_required(VERSION 3.11...3.15)
 
+
 project(CLIPPy
     VERSION 0.1
     DESCRIPTION "Command Line Interface Plus Python"
@@ -72,7 +73,7 @@ find_package(Threads REQUIRED)
 
 #
 # Boost
-find_package(Boost 1.64 REQUIRED)
+find_package(Boost 1.75 REQUIRED COMPONENTS json)
 
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
