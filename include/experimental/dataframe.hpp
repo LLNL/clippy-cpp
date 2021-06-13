@@ -4,7 +4,7 @@
 #include <cassert>
 #include <utility>
 #include <memory>
-#include <span>
+// #include <span>
 #include <variant>
 //~ #include <map>
 
@@ -543,7 +543,7 @@ struct SparseVectorAccessor : VectorAccessorCommon<sparse_vector_t, T>
     
     if (pos == cont.find_end()) 
     {
-      [[unlikely]] 
+      // [[unlikely]] 
       return nullptr;
     }
     
@@ -1188,7 +1188,7 @@ struct DataFrame
       
       if (pos == allColNames->find_end())
       {
-        [[unlikely]]
+        // [[unlikely]]
         throw unknown_column_error(name + " is not a known column");
       }
       
@@ -1292,7 +1292,7 @@ struct DataFrame
       
       if (!elem) 
       { 
-        [[unlikely]]
+        // [[unlikely]]
         return accessors[rep.first].default_value<ColType>(rep.second);
         //~ throw std::logic_error("cell value not available");
       }
@@ -1310,7 +1310,7 @@ struct DataFrame
       
       if (!elem)
       {
-        [[unlikely]]
+        // [[unlikely]]
         return std::optional<ColType>{};
       }  
       
