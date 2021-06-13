@@ -25,7 +25,6 @@ void setValueIfAvail(const boost::json::value& args, const char* key, int& val);
 
 int columnIndex(const std::vector<std::string>& all, const std::string& colname);
 
-[[noreturn]]
 bool fail(const std::string& msg);
 
 namespace
