@@ -3,6 +3,7 @@
 #include <fstream>
 
 #include "clip.hpp"
+#include <boost/json/src.hpp>
 
 namespace boostjsn = boost::json;
 
@@ -190,7 +191,6 @@ int columnIndex(const std::vector<std::string>& all, const std::string& colname)
   return std::distance(aa, pos);
 }
 
-[[noreturn]]
 bool fail(const std::string& msg)
 {
   clippy_assert(false, msg);

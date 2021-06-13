@@ -8,7 +8,7 @@ function ( add_df_example example_name )
   target_link_libraries(${example_name} libcliprt)
   endfunction()
 
-
+include_directories(${Boost_INCLUDE_DIRS}) 
 
 add_library(libcliprt STATIC clip)
 target_link_libraries(libcliprt ${Boost_LIBRARIES})
