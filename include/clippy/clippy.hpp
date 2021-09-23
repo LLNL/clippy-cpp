@@ -21,6 +21,7 @@ using number = double;
 using boolean = bool;
 using string = std::string;
 using arraystring = std::vector<string>;
+using arraystringstring  = std::vector<std::pair<string, string>>;
 using arrayint = std::vector<int64_t>;
 using arrayintint = std::vector<std::pair<int64_t, int64_t>>;
 
@@ -129,7 +130,7 @@ class clippy {
       return true;
     }
     std::string buf;
-    std::cin >> buf;
+    std::getline(std::cin, buf);
     m_json_input = boost::json::parse(buf);
     validate_json_input();
 
@@ -154,7 +155,7 @@ class clippy {
   }
 
   bool has_argument(const std::string &name) {
-    return m_json_input.as_object().contains(name);
+    return m_json_input.get_object().contains(name);
   }
 
  private:
@@ -190,7 +191,7 @@ class clippy {
       throw std::runtime_error("Clippy:: Cannot have duplicate argument names");
     }
     m_input_validators[name] = [name](const boost::json::value &j) {
-      if (!j.as_object().contains(name)) {
+      if (!j.get_object().contains(name)) {
         std::stringstream ss;
         ss << "CLIPPy ERROR:  Required argument " << name << " missing.\n";
         throw std::runtime_error(ss.str());
@@ -206,25 +207,31 @@ class clippy {
     };
   }
 
-  inline static boost::json::value &get_value(boost::json::value &value, const std::string &key) {
+  static boost::json::value &get_value(boost::json::value &value, const std::string &key) {
+    if (!value.is_object()) {
+      value.emplace_object();
+    }
     return value.get_object()[key];
   }
 
   template <typename ...argts>
-  inline static boost::json::value &get_value(boost::json::value &value,
+  static boost::json::value &get_value(boost::json::value &value,
                                               const std::string &key,
                                               const argts &... inner_keys) {
+    if (!value.is_object()) {
+      value.emplace_object();
+    }
     return get_value(value.get_object()[key], inner_keys...);
   }
 
-  inline static const boost::json::value &get_value(const boost::json::value &value, const std::string &key) {
+  static const boost::json::value &get_value(const boost::json::value &value, const std::string &key) {
     return value.get_object().at(key);
   }
 
   template <typename ...argts>
-  inline static const boost::json::value &get_value(const boost::json::value &value,
-                                                    const std::string &key,
-                                                    const argts &... inner_keys) {
+  static const boost::json::value &get_value(const boost::json::value &value,
+                                             const std::string &key,
+                                             const argts &... inner_keys) {
     return get_value(value.get_object().at(key), inner_keys...);
   }
 
@@ -261,6 +268,31 @@ clippy::arrayintint tag_invoke(boost::json::value_to_tag<clippy::arrayintint>, c
   for (const auto& inner_value : outer_array) {
     const auto& inner_array = inner_value.get_array();
     value.emplace_back(std::make_pair(inner_array[0].as_int64(),inner_array[1].as_int64()));
+  }
+
+  return value;
+}
+
+void tag_invoke(boost::json::value_from_tag, boost::json::value &jv, const clippy::arraystringstring &value) {
+  auto& outer_array = jv.emplace_array();
+  outer_array.resize(value.size());
+
+  for (std::size_t i = 0; i < value.size(); ++i) {
+    auto& inner_array = outer_array[i].emplace_array();
+    inner_array.resize(2);
+    inner_array[0] = value[i].first;
+    inner_array[1] = value[i].second;
+  }
+}
+
+clippy::arraystringstring tag_invoke(boost::json::value_to_tag<clippy::arraystringstring>, const boost::json::value &jv) {
+  clippy::arraystringstring value;
+
+  auto& outer_array = jv.get_array();
+  for (const auto& inner_value : outer_array) {
+    const auto& inner_array = inner_value.get_array();
+    value.emplace_back(std::make_pair(clippy::string(inner_array[0].as_string().c_str()),
+                                      clippy::string(inner_array[1].as_string().c_str())));
   }
 
   return value;

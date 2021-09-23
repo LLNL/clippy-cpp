@@ -34,6 +34,7 @@ add_example(sort_strings)
 add_example(howdy)
 add_example(sum)
 add_example(return_tuple)
+add_example(sort_string_edges)
 
 add_subdirectory(wordcounter)
 add_subdirectory(dataframe)
