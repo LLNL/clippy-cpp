@@ -9,14 +9,14 @@
 
 int main(int argc, char **argv) {
   clippy::clippy clip("sort_edges", "Sorts an edgelist");
-  clip.add_required<clippy::arrayintint>("edges", "Unordered edgelist");
-  clip.add_optional<clippy::boolean>("reverse", "Sort in reverse order", false);
+  clip.add_required<std::vector<int>>("edges", "Unordered edgelist");
+  clip.add_optional<bool>("reverse", "Sort in reverse order", false);
 
-  clip.returns<clippy::arrayintint>("Sorted edgelist");
+  clip.returns<std::vector<int>>("Sorted edgelist");
   if (clip.parse(argc, argv)) { return 0; }
 
-  auto edges = clip.get<clippy::arrayintint>("edges");
-  bool reverse = clip.get<clippy::boolean>("reverse");
+  auto edges = clip.get<std::vector<int>>("edges");
+  bool reverse = clip.get<bool>("reverse");
 
   if (reverse) {
     std::sort(edges.begin(), edges.end(),

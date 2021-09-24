@@ -9,15 +9,15 @@
 
 int main(int argc, char **argv) {
   clippy::clippy clip("sort_strings", "Sorts an array of strings");
-  clip.add_required<clippy::arraystring>("strings",
+  clip.add_required<std::vector<std::string>>("strings",
                                          "Unordered array of strings");
-  clip.add_optional<clippy::boolean>("reverse", "Sort in reverse order", false);
+  clip.add_optional<bool>("reverse", "Sort in reverse order", false);
 
-  clip.returns<clippy::arraystring>("Sorted array of strings");
+  clip.returns<std::vector<std::string>>("Sorted array of strings");
   if (clip.parse(argc, argv)) { return 0; }
 
-  auto strings = clip.get<clippy::arraystring>("strings");
-  bool reverse = clip.get<clippy::boolean>("reverse");
+  auto strings = clip.get<std::vector<std::string>>("strings");
+  bool reverse = clip.get<bool>("reverse");
 
   //  std::cout << "after reverse. It equals " << std::boolalpha << reverse <<
   //  std::endl;

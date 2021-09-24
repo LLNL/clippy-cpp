@@ -7,16 +7,18 @@
 #include <vector>
 #include <algorithm>
 
+using edge_array_t = std::vector<std::pair<std::string, std::string>>;
+
 int main(int argc, char **argv) {
   clippy::clippy clip("sort_string_edges", "Sorts a string edgelist");
-  clip.add_required<clippy::arraystringstring>("edges", "Unordered edgelist");
-  clip.add_optional<clippy::boolean>("reverse", "Sort in reverse order", false);
+  clip.add_required<edge_array_t>("edges", "Unordered edgelist");
+  clip.add_optional<bool>("reverse", "Sort in reverse order", false);
 
-  clip.returns<clippy::arraystringstring>("Sorted edgelist");
+  clip.returns<edge_array_t>("Sorted edgelist");
   if (clip.parse(argc, argv)) { return 0; }
 
-  auto edges = clip.get<clippy::arraystringstring>("edges");
-  bool reverse = clip.get<clippy::boolean>("reverse");
+  auto edges = clip.get<edge_array_t>("edges");
+  bool reverse = clip.get<bool>("reverse");
 
   if (reverse) {
     std::sort(edges.begin(), edges.end(),

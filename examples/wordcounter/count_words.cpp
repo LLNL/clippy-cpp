@@ -11,14 +11,14 @@ namespace mtl = metall;
 
 int main(int argc, char **argv) {
   clippy::clippy clip("count_words", "Count words");
-  clip.add_required<clippy::string>("path","Data store path");
-  clip.add_required<clippy::arraystring>("words","Unordered array of words");
+  clip.add_required<std::string>("path","Data store path");
+  clip.add_required<std::vector<std::string>>("words","Unordered array of words");
 
-  clip.returns<clippy::integer>("Total words");
+  clip.returns<int>("Total words");
   if (clip.parse(argc, argv)) { return 0; }
 
-  auto words = clip.get<clippy::arraystring>("words");
-  auto path = clip.get<clippy::string>("path");
+  auto words = clip.get<std::vector<std::string>>("words");
+  auto path = clip.get<std::string>("path");
 
   std::unique_ptr<mtl::manager> manager;
   if (mtl::manager::consistent(path.c_str())) { // Does the data store already exist?

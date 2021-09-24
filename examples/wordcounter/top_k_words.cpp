@@ -15,18 +15,18 @@ namespace mtl = metall;
 
 int main(int argc, char **argv) {
   clippy::clippy clip("top_k_words", "Return the top k words");
-  clip.add_required<clippy::string>("path", "Data store path");
-  clip.add_required<clippy::integer>("k", "k");
+  clip.add_required<std::string>("path", "Data store path");
+  clip.add_required<int>("k", "k");
 
-  clip.returns<clippy::arraystring>("Top k words");
+  clip.returns<std::vector<std::string>>("Top k words");
   if (clip.parse(argc, argv)) { return 0; }
 
-  auto path = clip.get<clippy::string>("path");
-  auto k = clip.get<clippy::integer>("k");
+  auto path = clip.get<std::string>("path");
+  auto k = clip.get<int>("k");
 
   // Cannot open the data store
   if (!mtl::manager::consistent(path.c_str())) {
-    clip.to_return(clippy::arraystring{});
+    clip.to_return(std::vector<std::string>{});
     return 0;
   }
 
@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
 
   if (length == 0) {
     // The table does not exist
-    clip.to_return(clippy::arraystring{});
+    clip.to_return(std::vector<std::string>{});
     return 0;
   }
 
@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
   }
 
   // Show the top k world
-  clippy::arraystring top_k_words;
+  std::vector<std::string> top_k_words;
   while (!top_k_queue.empty()) {
     top_k_words.push_back(top_k_queue.top().second);
     top_k_queue.pop();

@@ -11,7 +11,7 @@
 #include <metall/container/unordered_map.hpp>
 #include <metall/utility/hash.hpp>
 
-using table_value_type = std::pair<metall::container::string, clippy::integer>;
+using table_value_type = std::pair<metall::container::string, int>;
 using count_table_type = metall::container::unordered_map<metall::container::string, int,
                                                           metall::utility::string_hash<metall::container::string>,
                                                           std::equal_to<metall::container::string>,
