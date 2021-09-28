@@ -11,12 +11,12 @@ namespace mtl = metall;
 
 int main(int argc, char **argv) {
   clippy::clippy clip("total_words", "Return the total number of words");
-  clip.add_required<clippy::string>("path", "Data store path");
+  clip.add_required<std::string>("path", "Data store path");
 
-  clip.returns<clippy::integer>("Total words");
+  clip.returns<int>("Total words");
   if (clip.parse(argc, argv)) { return 0; }
 
-  auto path = clip.get<clippy::string>("path");
+  auto path = clip.get<std::string>("path");
 
   // Cannot open the data store
   if (!mtl::manager::consistent(path.c_str())) {

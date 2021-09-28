@@ -7,11 +7,11 @@
 
 int main(int argc, char **argv) {
   clippy::clippy clip("howdy", "Formal Texan greeting.");
-  clip.add_required<clippy::string>("name", "Name to greet");
-  clip.returns<clippy::string>("The greeting");
+  clip.add_required<std::string>("name", "Name to greet");
+  clip.returns<std::string>("The greeting");
   if (clip.parse(argc, argv)) { return 0; }
 
-  auto name = clip.get<clippy::string>("name");
+  auto name = clip.get<std::string>("name");
 
   clip.to_return(std::string("Howdy, ") + name);
   return 0;
