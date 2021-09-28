@@ -1,0 +1,7 @@
+if (MPI_CXX_FOUND)
+    add_example(noop)
+    target_include_directories(noop PUBLIC ${MPI_INCLUDE_PATH})
+    target_link_libraries(noop PRIVATE MPI::MPI_CXX)
+else()
+    message(STATUS "Will skip building the MPI examples")
+endif()

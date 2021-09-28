@@ -20,6 +20,8 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     # Let's ensure -std=c++xx instead of -std=g++xx
     set(CMAKE_CXX_EXTENSIONS OFF)
 
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+
     # Let's nicely support folders in IDE's
     set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -39,20 +41,55 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 endif()
 
 #
-# Boost
-find_package(Boost 1.75 REQUIRED COMPONENTS)
-
+# Threads
 find_package(Threads REQUIRED)
 
 #
-#  Metall
+# Boost
+find_package(Boost 1.75 REQUIRED)
+
 include(FetchContent)
-FetchContent_Declare(
-        Metall
-        GIT_REPOSITORY https://github.com/LLNL/metall.git
-        GIT_TAG        develop
-)
-FetchContent_MakeAvailable(Metall)
+
+#
+#  Metall
+find_package(Metall QUIET)
+if (NOT Metall_FOUND)
+    set (JUST_INSTALL_HEADER TRUE)
+    FetchContent_Declare(
+            Metall
+            GIT_REPOSITORY https://github.com/LLNL/metall.git
+            GIT_TAG develop
+    )
+    FetchContent_MakeAvailable(Metall)
+endif ()
+
+#
+#  cereal
+FetchContent_Declare(cereal
+        URL https://github.com/USCiLab/cereal/archive/refs/tags/v1.3.0.zip
+        )
+FetchContent_GetProperties(cereal)
+if (NOT cereal_POPULATED)
+    FetchContent_Populate(cereal)
+endif ()
+set(cereal_INCLUDE_DIR "${cereal_SOURCE_DIR}/include")
+
+#
+#  MPI
+find_package(MPI)
+
+#
+#  YGM
+if (MPI_CXX_FOUND)
+    FetchContent_Declare(YGM
+            URL https://github.com/LLNL/ygm/archive/refs/heads/master.zip
+            )
+    FetchContent_GetProperties(YGM)
+    if (NOT ygm_POPULATED)
+        FetchContent_Populate(YGM)
+    endif ()
+    set(YGM_INCLUDE_DIR "${ygm_SOURCE_DIR}/include")
+endif ()
 
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)

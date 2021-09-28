@@ -14,6 +14,9 @@
 #include <utility>
 #include <boost/json/src.hpp>
 
+#if __has_include(<mpi.h>)
+#include <mpi.h>
+#endif
 
 namespace clippy {
 
@@ -25,7 +28,17 @@ class clippy {
   }
 
   ~clippy() {
-    if (return_values) { std::cout << m_json_return << std::endl; }
+    if (return_values) {
+      int rank = 0;
+#ifdef MPI_VERSION
+      if (::MPI_Comm_rank(MPI_COMM_WORLD, &rank) != MPI_SUCCESS) {
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+      }
+#endif
+      if (rank == 0) {
+        std::cout << m_json_return << std::endl;
+      }
+    }
   }
 
   template <typename T>
