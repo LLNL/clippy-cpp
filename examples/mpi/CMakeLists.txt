@@ -1,0 +1,6 @@
+if (MPI_CXX_FOUND)
+    add_example(ranks)
+    target_link_libraries(ranks PRIVATE MPI::MPI_CXX)
+else()
+    message(STATUS "Will skip building the MPI examples")
+endif()

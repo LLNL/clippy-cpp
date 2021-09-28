@@ -54,6 +54,10 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Metall)
 
+#
+#  MPI
+find_package(MPI)
+
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
 if(EXISTS "${LOC_PATH}")
