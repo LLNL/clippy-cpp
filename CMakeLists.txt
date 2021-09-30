@@ -39,24 +39,56 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 endif()
 
 #
-# Boost
-find_package(Boost 1.75 REQUIRED COMPONENTS)
-
+# Threads
 find_package(Threads REQUIRED)
 
 #
+# Boost
+find_package(Boost 1.75 REQUIRED)
+
+#
 #  Metall
-include(FetchContent)
-FetchContent_Declare(
-        Metall
-        GIT_REPOSITORY https://github.com/LLNL/metall.git
-        GIT_TAG        develop
-)
-FetchContent_MakeAvailable(Metall)
+find_package(Metall QUIET)
+if (Metall_FOUND)
+    message(STATUS "Found Metall")
+else ()
+    message(STATUS "Could NOT find Metall locally. Download Metall.")
+    include(FetchContent)
+    FetchContent_Declare(
+            Metall
+            GIT_REPOSITORY https://github.com/LLNL/metall.git
+            GIT_TAG develop
+    )
+    FetchContent_MakeAvailable(Metall)
+endif ()
+
+#
+#  cereal
+FetchContent_Declare(cereal
+        URL https://github.com/USCiLab/cereal/archive/refs/tags/v1.3.0.zip
+        )
+FetchContent_GetProperties(cereal)
+if (NOT cereal_POPULATED)
+    FetchContent_Populate(cereal)
+endif ()
+set(cereal_INCLUDE_DIR "${cereal_SOURCE_DIR}/include")
 
 #
 #  MPI
 find_package(MPI)
+
+#
+#  YGM
+if (MPI_CXX_FOUND)
+    FetchContent_Declare(YGM
+            URL https://github.com/LLNL/ygm/archive/refs/heads/master.zip
+            )
+    FetchContent_GetProperties(YGM)
+    if (NOT ygm_POPULATED)
+        FetchContent_Populate(YGM)
+    endif ()
+    set(YGM_INCLUDE_DIR "${ygm_SOURCE_DIR}/include")
+endif ()
 
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
