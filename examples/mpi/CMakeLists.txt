@@ -1,0 +1,7 @@
+if (MPI_CXX_FOUND)
+    add_example(mpi_ranks)
+    target_include_directories(mpi_ranks PUBLIC ${MPI_INCLUDE_PATH})
+    target_link_libraries(mpi_ranks PRIVATE MPI::MPI_CXX)
+else()
+    message(STATUS "Will skip building the MPI examples")
+endif()
