@@ -51,6 +51,10 @@ find_package(Boost 1.75 REQUIRED)
 include(FetchContent)
 
 #
+# Boost
+find_package(Boost 1.75 REQUIRED)
+
+#
 #  Metall
 find_package(Metall QUIET)
 if (NOT Metall_FOUND)
