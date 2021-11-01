@@ -42,7 +42,7 @@ class clippy {
     add_optional_validator<T>(name);
     get_value(m_json_config, "args", name, "desc") = desc;
     get_value(m_json_config, "args", name, "position") = -1;
-    get_value(m_json_config, "args", name, "default_val") = default_val;
+    get_value(m_json_config, "args", name, "default_val") = boost::json::value_from(default_val);
   }
 
   template <typename T>
