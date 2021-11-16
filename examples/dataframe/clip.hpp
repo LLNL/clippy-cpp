@@ -5,14 +5,19 @@
 #include <iosfwd>
 #include <memory>
 #include <sstream>
-//~ #include <source_location>
+
+#if defined __has_include
+  #if __has_include (<source_location>)
+	#include <source_location>
+  #endif
+#endif /* defined __has_include */
 
 #include <boost/json.hpp>
 
 constexpr const bool firstMatch = false;
 
 void resultOK(std::ostream& os, const std::string& msg = {});
-void errorJson(std::ostream& os, const std::string& msg); 
+void errorJson(std::ostream& os, const std::string& msg);
 
 void prettyPrint(std::ostream& os, boost::json::value const& jv);
 void prettyPrint(boost::json::value const& jv);
@@ -31,17 +36,24 @@ namespace
 {
   template <class EX = std::logic_error>
   inline
-  void clippy_assert(bool cond, const std::string& msg) // , std::source_location pos = std::source_location::current())
+  void clippy_assert( bool cond
+                    , const std::string& msg
+#if __cpp_lib_source_location
+                    , std::source_location pos = std::source_location::current()
+#endif /* __cpp_lib_source_location */
+                    )
   {
     if (cond) return;
-    
+
     std::stringstream errmsg;
-    
-    errmsg << msg 
-           //~ << " @ " << pos.file_name 
-           //~ << ":" << pos.line
+
+    errmsg << msg
+#if __cpp_lib_source_location
+           << " @ " << pos.file_name
+           << " : " << pos.line
+#endif /* __cpp_lib_source_location */
            ;
-           
+
     throw EX{errmsg.str()};
   }
 }

@@ -33,20 +33,60 @@ void csv_assert(bool cond, std::string msg) // , std::source_location pos = std:
   throw EX{errmsg.str()};
 }  
   
-auto readStr(std::istream& stream, char sep = ',') -> std::string
+#if OBSOLETE_CODE
+auto readStr2(std::istream& stream, char sep = ',') -> std::string
 {
   std::string el;
 
   getline(stream, el, sep);
   return el;
 }
+#endif /* OBSOLETE_CODE */
 
-auto readStrLn(std::istream& stream) -> std::string
+void processQuotedChar(std::istream& stream, std::vector<char>& buf, bool inclQuotes)
 {
-  return readStr(stream, '\n');
+  if (inclQuotes) buf.push_back('"');
+
+  while (true)
+  {
+    char ch = stream.get();
+
+    if (ch == '"')
+    {
+      if (inclQuotes) buf.push_back('"');
+
+      if (stream.peek() != '"')
+        return;
+
+      ch = stream.get();
 }
 
-bool eof(std::istream& stream)
+    buf.push_back(ch);
+  }
+}
+
+auto readStr(std::istream& stream, char sep = ',', bool inclQuotes = false) -> std::string
+{
+  std::vector<char> buf;
+  char              ch = '\0';
+
+  while (!stream.eof() && ((ch = stream.get()) != sep))
+  {
+    if (ch == '"')
+      processQuotedChar(stream, buf, inclQuotes);
+    else
+      buf.push_back(ch);
+  }
+
+  return std::string{buf.begin(), buf.end()};
+}
+
+auto readStrLn(std::istream& stream, bool inclQuotes = false) -> std::string
+{
+  return readStr(stream, '\n', inclQuotes);
+}
+
+bool assertEof(std::istream& stream)
 {
   std::string tmp;
   stream >> tmp;
@@ -61,7 +101,27 @@ auto read(std::istream& stream, char sep = ',') -> T
   T                 res;
   
   ss >> res;
-  csv_assert(eof(ss), "error reading CSV value @1");
+  csv_assert(assertEof(ss), "error reading CSV value @1");
+  return res;
+}
+
+template <class T>
+auto read_rec(std::istream& stream, T res, char sep = ',') -> T
+{
+  std::stringstream ss(readStr(stream, sep));
+
+  ss >> res;
+  csv_assert(assertEof(ss), "error reading CSV value @1");
+  return res;
+}
+
+template <class T>
+auto read_rec(std::istream& stream, experimental::string_t res, char sep = ',') -> T
+{
+  std::string inp = readStr(stream, sep);
+
+  res.clear();
+  res.append(inp.data(), inp.size());
   return res;
 }
 
@@ -70,6 +130,21 @@ auto readTuple(std::istream& stream) -> std::tuple<Fields...>
 {
   return std::tuple<Fields...>{ read<Fields>(stream)... };
 }
+
+template <class... Fields, size_t... I>
+auto readTuple_rec(std::istream& stream, std::tuple<Fields...> sample, std::index_sequence<I...>)
+     -> std::tuple<Fields...>
+{
+  return std::tuple<Fields...>{ read_rec<Fields>(stream, std::move(std::get<I>(sample)))... };
+}
+
+template <class... Fields>
+auto readTuple_rec(std::istream& stream, std::tuple<Fields...> sample) -> std::tuple<Fields...>
+{
+  return readTuple_rec(stream, std::move(sample), std::make_index_sequence<sizeof... (Fields)>());
+}
+
+
 
 template <class T>
 auto readLn(std::istream& stream) -> T
@@ -131,12 +206,13 @@ void writeLn(std::ostream& os, std::tuple<Field...>&& rec, std::index_sequence<I
 
 } // namespace anonymous
 
+
 template<class... Fields>
 auto importCSV(DataFrame& frame, std::istream& is)
 {
   for (;;) 
   {
-    std::string line = readStrLn(is);
+    std::string line = readStrLn(is, true);
     
     // break on eof
     if (!is) break;
@@ -144,9 +220,27 @@ auto importCSV(DataFrame& frame, std::istream& is)
     std::stringstream linestream(line);
       
     frame.add(readTuple<Fields...>(linestream));
-    csv_assert(eof(linestream), "error reading CSV value @2");
+    csv_assert(assertEof(linestream), "error reading CSV value @2");
   }
 }
+
+template<class... Fields>
+auto importCSV_rec(DataFrame& frame, std::istream& is, std::tuple<Fields...> sample)
+{
+  for (;;)
+  {
+    std::string line = readStrLn(is, true);
+
+    // break on eof
+    if (!is) break;
+
+    std::stringstream linestream(line);
+
+    frame.add(readTuple_rec(linestream, sample));
+    csv_assert(assertEof(linestream), "error reading CSV value @2");
+  }
+}
+
 
 template<class... Fields>
 auto importCSV(DataFrame& frame, const std::string& filename) -> void
@@ -163,6 +257,15 @@ auto importCSV(DataFrame& frame, const std::string& filename, const std::tuple<F
 }
 
 
+template<class... Fields>
+auto importCSV_rec(DataFrame& frame, const std::string& filename, std::tuple<Fields...> sample) -> void
+{
+  std::ifstream istream{filename};
+
+  importCSV_rec<Fields...>(frame, istream, std::move(sample));
+}
+
+
 template <class ElemType>
 auto importCSV_variant( DataFrame& frame, 
                         std::ifstream& is, 
@@ -171,7 +274,7 @@ auto importCSV_variant( DataFrame& frame,
 {
   for (;;) 
   {
-    std::string line = readStrLn(is);
+    std::string line = readStrLn(is, true);
     
     // break on eof
     if (!is) break;
@@ -179,7 +282,7 @@ auto importCSV_variant( DataFrame& frame,
     std::stringstream linestream(line);
       
     frame.add_variant(readTupleVariant(linestream, adapt));
-    csv_assert(eof(linestream), "error reading CSV value @3");
+    csv_assert(assertEof(linestream), "error reading CSV value @3");
   }
 }
   

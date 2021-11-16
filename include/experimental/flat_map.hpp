@@ -13,15 +13,19 @@
 #include "metall/metall.hpp"
 #include "metall/tags.hpp"
 
+// use parallel algorithms only if specifically requested
+//   helps avoid issues with missing TBB which is required for GCC parallel algorithms
+#ifdef WITH_PARALLEL_EXECUTION
 
 // portability for pre-C++20 compilers
-
 #if defined __has_include
-  #if __has_include (<execution>) && !defined(__clang__)
+  #if __has_include (<execution>)
   #define CXX20_PARALLEL_EXECUTION 1
 	#include <execution>
   #endif
-#endif
+#endif /* defined __has_include */
+
+#endif /* WITH_PARALLEL_EXECUTION */
 
 #ifdef CXX20_PARALLEL_EXECUTION
 #define EXEC_STRATEGY PAR_STRATEGY,
@@ -42,10 +46,10 @@ namespace
   // 2 .. sort(new) + merge
   // 3 .. sort(new) + lower_bound + move + insert
   // 4 .. sort(new) + move_until(linear) + insert (good for int keys, not good for strings)
-  
+
 #ifdef CXX20_PARALLEL_EXECUTION
-  constexpr auto PAR_STRATEGY                   = std::execution::seq;  
-  //~ constexpr auto PAR_STRATEGY                   = std::execution::unseq;  
+  constexpr auto PAR_STRATEGY                   = std::execution::seq;
+  //~ constexpr auto PAR_STRATEGY                   = std::execution::unseq;
 #endif /* CXX20_PARALLEL_EXECUTION */
 
   template <class KeyComp>
@@ -83,7 +87,7 @@ namespace
   {
     if (!HOMEGROWN_ALGORITHMS)
       return std::lower_bound(first, limit, el, comp);
-      
+
     std::size_t dist = std::distance(first, limit);
 
     while (dist >= LINEAR_BINARY_SEARCH_THRESHOLD)
@@ -99,13 +103,13 @@ namespace
         first = cand+1;
       else
         limit = cand;
-        
+
       dist = std::distance(first, limit);
     }
 
     return lowerBoundLinear(first, limit, el, comp);
   }
-  
+
   template <class ForwardIterator, class T, class Comparator>
   ForwardIterator
   upperBoundLinear(ForwardIterator first, const ForwardIterator limit, const T& el, Comparator comp)
@@ -117,33 +121,33 @@ namespace
 
     return first;
   }
-  
+
   template <class RandomAccessIterator, class T, class Comparator>
   RandomAccessIterator
   upperBound(RandomAccessIterator first, RandomAccessIterator limit, const T& el, Comparator comp)
   {
     if (!HOMEGROWN_ALGORITHMS)
-      return std::lower_bound(first, limit, el, comp);      
+      return std::lower_bound(first, limit, el, comp);
 
     std::size_t dist = std::distance(first, limit);
-    
+
     //~ __builtin_prefetch(&first[dist/2 + dist/4]);
     //~ __builtin_prefetch(&first[dist/2 - dist/4]);
-    
+
     while (dist >= LINEAR_BINARY_SEARCH_THRESHOLD)
     {
       RandomAccessIterator cand = first + (dist/2);
-      
+
       if (!comp(el, *cand))
         first = cand+1;
       else
         limit = cand;
-        
+
       dist = std::distance(first, limit);
       //~ __builtin_prefetch(&first[dist/2 + dist/4]);
       //~ __builtin_prefetch(&first[dist/2 - dist/4]);
     }
-    
+
     return upperBoundLinear(first, limit, el, comp);
   }
 }
@@ -178,8 +182,6 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
     using iterator_vec       = value_type_vec*;
     using const_iterator_vec = const value_type_vec*;
     using buffer_type        = std::map<key_type, mapped_type, key_compare>;
-    
-
 
   public:
   // constructors
@@ -194,7 +196,7 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
     flat_map(const allocator_type& alloc)
     : base(alloc), keycomp()
     {}
-    
+
     // \todo add cctor, mctor and ops=
 
   // iterator access
@@ -231,10 +233,10 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
 
     bool        empty()    const { return size() == 0; }
     std::size_t size()     const { return size(buf(this)); }
-    
-    std::size_t size(const buffer_type& buf) const 
-    { 
-      return base::size() + buf.size(); 
+
+    std::size_t size(const buffer_type& buf) const
+    {
+      return base::size() + buf.size();
     }
 
   // element access
@@ -300,12 +302,12 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
 
       return std::make_pair(&insert_buf(std::move(val)), true);
     }
-    
+
     template <class... Args>
     std::pair<iterator,bool> emplace (Args&&... args)
     {
       value_type val{std::forward<Args>(args)...};
-      
+
       return insert(std::move(val));
     }
 
@@ -327,7 +329,7 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
       else
       {
         const bool deleted = buf(this).erase(k);
-        
+
         assert(deleted);
       }
 
@@ -355,7 +357,7 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
     void swap (flat_map& x)
     {
       base::swap(x.container);
-      
+
       buf(this).swap(buf(&x));
       // swap keycomp??
     }
@@ -376,8 +378,8 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
     {
       return reinterpret_cast<iterator>(vecend());
     }
-    
-    const_iterator 
+
+    const_iterator
     find(const key_type& k) const
     {
       return reinterpret_cast<const_iterator>(find_internal(k).first);
@@ -441,9 +443,9 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
     void persist(buffer_type& buffer)
     {
       using buf_reverse_iterator = typename buffer_type::reverse_iterator;
-      
+
       size_t displacement = buffer.size();
-      
+
       if (displacement == 0) return;
 
       key_compare compfn = key_comp();
@@ -463,10 +465,10 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
             iterator_vec         pos   = vecend() - displacement - 1;
             buf_reverse_iterator aa    = buffer.rbegin();
             buf_reverse_iterator zz    = buffer.rend();
-            
-            // O(N) key comparisons 
+
+            // O(N) key comparisons
             while (aa != zz)
-            {              
+            {
               while (pos != start && (comp(*aa, *pos)))
               {
                 *(pos+displacement) = std::move(*pos);
@@ -487,13 +489,13 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
             iterator_vec         limit = vecend() - displacement;
             buf_reverse_iterator aa    = buffer.rbegin();
             buf_reverse_iterator zz    = buffer.rend();
-            
+
 
             // O(i * log(N)) key comparisons
             while (displacement > 0)
             {
               assert(aa != zz);
-              
+
               iterator_vec pos = upperBound(vecbegin(), limit, *aa, comp);
 
               // \todo if in STL: std::shift_right(EXEC_STRATEGY pos, limit, i);
@@ -515,10 +517,10 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
 
           tmp.reserve(size(buffer));
 
-          std::merge( EXEC_STRATEGY 
-                      vecbegin(), vecend(), 
-                      buffer.begin(), buffer.end(), 
-                      std::back_inserter(tmp), 
+          std::merge( EXEC_STRATEGY
+                      vecbegin(), vecend(),
+                      buffer.begin(), buffer.end(),
+                      std::back_inserter(tmp),
                       comp
                     );
           base::swap(tmp);
@@ -530,24 +532,24 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
           const size_t currsize = base::size();
 
           base::reserve(size(buffer));
-          std::copy( EXEC_STRATEGY 
-                     buffer.begin(), buffer.end(), 
+          std::copy( EXEC_STRATEGY
+                     buffer.begin(), buffer.end(),
                      std::back_inserter(*this)
                    );
 
-          std::inplace_merge( EXEC_STRATEGY 
-                              base::begin(), base::begin()+currsize, 
-                              base::end(), 
+          std::inplace_merge( EXEC_STRATEGY
+                              base::begin(), base::begin()+currsize,
+                              base::end(),
                               comp
                             );
           break;
         }
-        
+
         case 0:
         {
           base::reserve(size(buffer));
-          std::copy( EXEC_STRATEGY 
-                     buffer.begin(), buffer.end(), 
+          std::copy( EXEC_STRATEGY
+                     buffer.begin(), buffer.end(),
                      std::back_inserter(*this)
                    );
           std::sort(EXEC_STRATEGY base::begin(), base::end(), comp);
@@ -558,7 +560,7 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
 
       buffer.clear();
     }
-    
+
     void persist()
     {
       persist(buf(this));
@@ -577,12 +579,12 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
     {
       return *this;
     }
-    
-    std::pair<const_iterator, bool> 
+
+    std::pair<const_iterator, bool>
     find_internal(const key_type& k) const
     {
       using buf_const_iterator = typename buffer_type::const_iterator;
-      
+
       {
         const_iterator_vec const veclimit = vecend();
         const_iterator_vec       pos = lowerBound(vecbegin(), veclimit, k, comparator());
@@ -592,7 +594,7 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
       }
 
       {
-      /*  
+      /*
         key_compare              compfn   = key_comp();
         const_iterator_vec const buflimit = buf + i;
         const_iterator_vec       pos = std::find_if( EXEC_STRATEGY
@@ -605,7 +607,7 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
       */
         buf_const_iterator buflimit = buf(this).end();
         buf_const_iterator bufpos   = buf(this).find(k);
-         
+
         if (bufpos != buflimit)
           return std::make_pair(&*bufpos, true);
       }
@@ -652,7 +654,7 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
     reference insert_buf(const KeyT& k, const ElemT& el)
     {
       buffer_type& buffer = buf(this);
-      
+
       //~ if (i == N) persist(buffer);
 /*
       buf[i] = std::make_pair(k, el);
@@ -664,7 +666,7 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
     reference insert_buf(value_type&& v)
     {
       buffer_type& buffer = buf(this);
-      
+
       //~ if (i == N) persist(buffer);
 
 /*
@@ -673,21 +675,21 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
 */
       return *(buffer.insert(std::move(v)).first);
     }
-    
+
     static
     buffer_type& buf(flat_map* /* mainMap */)
     {
       static buffer_type dummy;
-      
+
       return dummy;
       //~ return buffers[mainMap];
     }
-    
+
     static
     const buffer_type& buf(const flat_map* /*mainMap*/)
     {
       static buffer_type dummy;
-      
+
       return dummy;
       //~ return buffers[mainMap];
     }
@@ -700,7 +702,7 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
     //~ value_type_vec buf[N];
     //~ buffer_type    buf;
     //~ std::map<key_type, mapped_type> buf[N];
-    
+
     //~ static std::unordered_map<const flat_map*, buffer_type, key_compare> buffers;
 };
 
@@ -711,8 +713,8 @@ template < class KeyT,
            class Alloc,
            template <class, class> class Vector
          >
-std::unordered_map< const flat_map<KeyT, ElemT, Compare, Alloc, Vector>*, 
-                    std::map<KeyT, ElemT, Compare> 
+std::unordered_map< const flat_map<KeyT, ElemT, Compare, Alloc, Vector>*,
+                    std::map<KeyT, ElemT, Compare>
                   >
 flat_map<KeyT, ElemT, Compare, Alloc, Vector>::buffers;
 */
