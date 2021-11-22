@@ -206,7 +206,6 @@ void writeLn(std::ostream& os, std::tuple<Field...>&& rec, std::index_sequence<I
 
 } // namespace anonymous
 
-
 template<class... Fields>
 auto importCSV(DataFrame& frame, std::istream& is)
 {
