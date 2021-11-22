@@ -15,7 +15,7 @@
 
 // use parallel algorithms only if specifically requested
 //   helps avoid issues with missing TBB which is required for GCC parallel algorithms
-#ifdef WITH_PARALLEL_EXECUTION
+#ifdef WITH_PARALLEL_STL
 
 // portability for pre-C++20 compilers
 #if defined __has_include
@@ -25,7 +25,7 @@
   #endif
 #endif /* defined __has_include */
 
-#endif /* WITH_PARALLEL_EXECUTION */
+#endif /* WITH_PARALLEL_STL */
 
 #ifdef CXX20_PARALLEL_EXECUTION
 #define EXEC_STRATEGY PAR_STRATEGY,
