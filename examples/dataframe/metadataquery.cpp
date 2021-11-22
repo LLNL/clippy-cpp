@@ -17,7 +17,7 @@ namespace boostjsn = boost::json;
 namespace xpr = experimental;
 
 
-const char* const METHOD_NAME         = "columnInfo";
+const char* const METHOD_NAME         = "metadataquery";
 const char* const ARG_METALL_LOCATION = "metall_location";
 const char* const ARG_DATAFRAME_KEY   = "dataframe_key";
 

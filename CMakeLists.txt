@@ -56,9 +56,9 @@ else ()
     include(FetchContent)
     FetchContent_Declare(
             Metall
-            GIT_REPOSITORY https://github.com/LLNL/metall.git
+        GIT_REPOSITORY https://github.com/LLNL/metall.git
             GIT_TAG develop
-    )
+        )
     FetchContent_MakeAvailable(Metall)
 endif ()
 
