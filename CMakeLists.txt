@@ -20,6 +20,8 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     # Let's ensure -std=c++xx instead of -std=g++xx
     set(CMAKE_CXX_EXTENSIONS OFF)
 
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+
     # Let's nicely support folders in IDE's
     set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -46,14 +48,17 @@ find_package(Threads REQUIRED)
 # Boost
 find_package(Boost 1.75 REQUIRED)
 
+include(FetchContent)
+
+#
+# Boost
+find_package(Boost 1.75 REQUIRED)
+
 #
 #  Metall
 find_package(Metall QUIET)
-if (Metall_FOUND)
-    message(STATUS "Found Metall")
-else ()
-    message(STATUS "Could NOT find Metall locally. Download Metall.")
-    include(FetchContent)
+if (NOT Metall_FOUND)
+    set (JUST_INSTALL_HEADER TRUE)
     FetchContent_Declare(
             Metall
             GIT_REPOSITORY https://github.com/LLNL/metall.git
