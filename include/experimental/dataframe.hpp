@@ -4,11 +4,9 @@
 #include <cassert>
 #include <utility>
 #include <memory>
-// #include <span>
 #include <variant>
+// #include <span>
 //~ #include <map>
-
-//~ 
 
 #include <boost/container/vector.hpp>
 #include <boost/container/string.hpp>
@@ -18,6 +16,7 @@
 #include "metall/tags.hpp"
 
 #include "experimental/flat_map.hpp"
+#include "experimental/cxx-compat.hpp"
 
 namespace experimental
 {
@@ -105,14 +104,11 @@ struct dense_column : Vector<ValT, AllocT>, DefaultValue<ValT>
 };  
 
 template <class T>
-//~ using dense_vector_t  = boost::container::vector<T, metall::manager::allocator_type<T>>;
 using dense_vector_t  = dense_column<T, metall::manager::allocator_type<T>>;
 
 
 template <class T>
 using sparse_vector_t = sparse_column<size_t, T>;
-//~ using sparse_vector_t = boost::container::map<size_t, T, std::less<size_t>, metall::manager::allocator_type<std::pair<const size_t, T> >;
-
 
 namespace
 {
@@ -297,8 +293,6 @@ struct AnyColumnIterator
     delete pit;
   }
   
-  
-    
   T& operator*() { return pit->deref(); }
   size_t row() const { return pit->row(); }
   ThisType& operator++() { pit->next(); return *this; }
@@ -341,16 +335,17 @@ struct AnyColumnIterator
 
 namespace
 {
+
+/// interface for diagnostics
 struct VectorAccessorRuntimeInfo 
 {
-  virtual
-  std::string type_name() const = 0;
+  /// returns the type of the element
+  virtual std::string type_name() const = 0;
 };
-
 
 /// define operations on columns. 
 template <class T>
-struct VectorAccessorBaseT : VectorAccessorRuntimeInfo
+struct VectorAccessorBaseT : virtual VectorAccessorRuntimeInfo
 {
   using entry_type = std::pair<const size_t, T>;
     
@@ -405,19 +400,45 @@ struct VectorAccessorBase : VectorAccessorBaseT<string_t>
                           , VectorAccessorBaseT<uint_t> 
                           , VectorAccessorBaseT<real_t>
 {
+  //
+  // variant based types
+  using value_variant_t           = dataframe_variant_t;
+  using pointer_variant_t         = std::variant<int_t*, uint_t*, real_t*, string_t*>;
+  //~ using const_reference_variant_t = std::variant<const int_t&, const uint_t&, const real_t&, const string_t&>;
+  using iterator_variant_t        = std::variant< dense_vector_t<int_t>::iterator,    sparse_vector_t<int_t>::iterator
+                                                , dense_vector_t<uint_t>::iterator,   sparse_vector_t<uint_t>::iterator
+                                                , dense_vector_t<real_t>::iterator,   sparse_vector_t<real_t>::iterator
+                                                , dense_vector_t<string_t>::iterator, sparse_vector_t<string_t>::iterator
+                                                >;
+  using range_variant_t           = std::pair<iterator_variant_t, iterator_variant_t>;
+
+  //
+  // element-type independent API
+
   /// returns true iff this is a sparse column
   virtual bool is_sparse() const = 0;
   
-  virtual std::string type_name() const override = 0;
-
-  virtual dataframe_variant_t cell_variant(void* /*cont*/, size_t /*pos*/) const = 0; 
-  
-  virtual void add_variant(void* /*cont*/, dataframe_variant_t&& /*elem*/) const = 0; 
-  // may not be needed
-  //~ virtual void cell_variant(void* /*cont*/, size_t /*pos*/, const dataframe_variant_t&) const = 0;
-
   /// writes back any data held in volatile memory
   virtual void persist(void* /*cont*/) const = 0;
+
+  //
+  // variant-based abstract API
+  
+  /// returns a pointer to an element at \ref pos, or nullptr if the value does not exist
+  virtual pointer_variant_t at_variant(void* cont, size_t pos) const = 0;
+
+  /// returns a reference to variant with a reference to a default value
+  virtual value_variant_t default_value_variant(void* /*cont*/) const = 0;
+  //~ virtual const_reference_variant_t default_value_variant(void* /*cont*/) const = 0;
+
+  /// returns a variant to a value at \ref pos
+  virtual value_variant_t cell_variant(void* /*cont*/, size_t pos) const = 0;
+
+  /// adds a new element at the end of the column
+  virtual void add_variant(void* /*cont*/, value_variant_t&& /* value */) const = 0;
+
+  /// returns an iterator pair of the column
+  virtual range_variant_t range_variant(void* /*cont*/) const = 0;
 };
 
 
@@ -457,31 +478,36 @@ struct VectorAccessorCommon : VectorAccessorBase
     return data(vec).default_value();
   } 
   
-  dataframe_variant_t 
+  value_variant_t
   cell_variant(void* vec, size_t row) const override
   {
     const VectorAccessorBaseT<T>& self = *this;
     T*                            res = self.at(vec, row, tag<T>());
     
-    return res ? dataframe_variant_t{*res} : dataframe_variant_t{self.default_value(vec, tag<T>())};
+    return res ? value_variant_t{*res} : value_variant_t{self.default_value(vec, tag<T>())};
   }
   
   void 
-  add_variant(void* vec, dataframe_variant_t&& elem) const override
+  add_variant(void* vec, value_variant_t&& elem) const override
   {
     const VectorAccessorBaseT<T>& self = *this;
     
     self.add(vec, std::get<T>(std::move(elem)));
   }
 
-/*  
-  void cell_variant(void* vec, size_t pos, const dataframe_variant_t& el) const override
+  pointer_variant_t
+  at_variant(void* cont, size_t pos) const override
   { 
     const VectorAccessorBaseT<T>& self = *this;
     
-    self.cell(vec, pos, tag<T>()) = std::get<T>(el); 
+    return pointer_variant_t{ self.at(cont, pos, tag<T>()) };
   }
-*/
+
+  value_variant_t
+  default_value_variant(void* vec) const override
+  {
+    return value_variant_t{ default_value(vec, tag<T>()) };
+  }
 };
 
 // dense vector accessor
@@ -490,6 +516,8 @@ struct DenseVectorAccessor : VectorAccessorCommon<dense_vector_t, T>
 { 
   using base = VectorAccessorCommon<dense_vector_t, T>;
   using typename base::VectorRep;
+  using typename base::range_variant_t;
+  using typename base::iterator_variant_t;
     
   T* 
   at(void* vec, size_t pos, const T*) const override
@@ -523,6 +551,14 @@ struct DenseVectorAccessor : VectorAccessorCommon<dense_vector_t, T>
                          ); 
   }  
   
+  range_variant_t
+  range_variant(void* cont) const override
+  {
+    VectorRep& col = base::data(cont);
+
+    return range_variant_t{ iterator_variant_t{col.begin()}, iterator_variant_t{col.end()} };
+  }
+
   void persist(void*) const override { /* nothing to do for dense vectors */ }
 };
 
@@ -532,6 +568,8 @@ struct SparseVectorAccessor : VectorAccessorCommon<sparse_vector_t, T>
 { 
   using base = VectorAccessorCommon<sparse_vector_t, T>;
   using typename base::VectorRep; 
+  using typename base::range_variant_t;
+  using typename base::iterator_variant_t;
   
   T*
   at(void* vec, size_t row, const T*) const override
@@ -543,7 +581,7 @@ struct SparseVectorAccessor : VectorAccessorCommon<sparse_vector_t, T>
     
     if (pos == cont.find_end()) 
     {
-      // [[unlikely]] 
+      CXX_UNLIKELY;
       return nullptr;
     }
     
@@ -575,6 +613,14 @@ struct SparseVectorAccessor : VectorAccessorCommon<sparse_vector_t, T>
                            CommonIterator{col.end()}
                          ); 
   }
+
+  range_variant_t
+  range_variant(void* cont) const override
+  {
+    VectorRep& col = base::data(cont);
+
+    return range_variant_t{ iterator_variant_t{col.begin()}, iterator_variant_t{col.end()} };
+  }
   
   void persist(void* cont) const override
   { 
@@ -583,9 +629,14 @@ struct SparseVectorAccessor : VectorAccessorCommon<sparse_vector_t, T>
 };
 
 
-
+/// Value Wrapper for dense and sparse vectors
 struct VectorAccessorAny 
 {    
+    using value_variant_t    = VectorAccessorBase::value_variant_t;
+    using pointer_variant_t  = VectorAccessorBase::pointer_variant_t;
+    using iterator_variant_t = VectorAccessorBase::iterator_variant_t;
+    using range_variant_t    = VectorAccessorBase::range_variant_t;
+
     template <class T>
     explicit
     VectorAccessorAny(const dense_vector_t<T>* /* tag */)
@@ -600,91 +651,125 @@ struct VectorAccessorAny
     
     ~VectorAccessorAny() = default;
     
+
+  private:
     template <class T>
-    T* at(void* cont, size_t row) const 
+    VectorAccessorBaseT<T>& vectorT() const
     {
       VectorAccessorBaseT<T>* obj = &*v;
       
-      return obj->at(cont, row, tag<T>());
+      assert(obj);
+      return *obj;
+    }
+
+    VectorAccessorBase& vector() const
+    {
+      VectorAccessorBase* obj = &*v;
+
+      assert(obj);
+      return *obj;
+    }
+
+  public:
+
+    //
+    // template based interface
+
+    template <class T>
+    T* at(void* cont, size_t row) const
+    {
+      return vectorT<T>().at(cont, row, tag<T>());
     }
 
     template <class T>
     const T& default_value(void* cont) const 
     {
-      VectorAccessorBaseT<T>* obj = &*v;
-      
-      return obj->default_value(cont, tag<T>());
+      return vectorT<T>().default_value(cont, tag<T>());
     }
     
     template <class T>
     T& cell(void* cont, size_t row) const 
     {
-      VectorAccessorBaseT<T>* obj = &*v;
-      
-      return obj->cell(cont, row, tag<T>());
+      return vectorT<T>().cell(cont, row, tag<T>());
     }
 
     template <class T>
     void add(void* cont, T&& el) const 
     {
-      VectorAccessorBaseT<T>* obj = &*v;
-      
-      assert(obj);
-      obj->add(cont, std::move(el));
+      vectorT<T>().add(cont, std::move(el));
     }
 
     template <class ColType, class T = typename ColType::value_type>
     ColType& 
     data(void* cont) const 
     {
-      VectorAccessorBaseT<T>* obj = &*v;
-      
-      return obj->data(cont, tag<ColType>()); 
+      return vectorT<T>().data(cont, tag<ColType>());
     }
     
     template <class T>
     std::pair<AnyColumnIterator<T>, AnyColumnIterator<T> > 
     range(void* cont) const 
     {
-      VectorAccessorBaseT<T>* obj = &*v;
+      return vectorT<T>().range(cont, tag<T>());
+    }
       
-      return obj->range(cont, tag<T>());
+
+    //
+    // variant based interface
+
+    value_variant_t
+    cell_variant(void* cont, size_t pos) const
+    {
+      return vector().cell_variant(cont, pos);
     }
     
-    dataframe_variant_t 
-    cell_variant(void* vec, size_t pos) const
+    void
+    add_variant(void* cont, value_variant_t&& el) const
     {
-      VectorAccessorBase* obj = &*v;
+      vector().add_variant(cont, std::move(el));
+    }
       
-      return obj->cell_variant(vec, pos); 
+    pointer_variant_t
+    at_variant(void* cont, size_t pos) const
+    {
+      return vector().at_variant(cont, pos);
     }
     
-    void 
-    add_variant(void* vec, dataframe_variant_t&& el) const
+    value_variant_t
+    default_value_variant(void* cont) const
     {
-      VectorAccessorBase* obj = &*v;
-      
-      return obj->add_variant(vec, std::move(el)); 
+      return vector().default_value_variant(cont);
     }
+      
+    range_variant_t
+    range_variant(void* cont) const
+    {
+      return vector().range_variant(cont);
+    }
+
+
+    //
+    // meta info
     
     std::string 
     type_name() const
     {
-      return v->type_name();
+      return vector().type_name();
     }
     
     bool 
     is_sparse() const
     {
-      return v->is_sparse();
+      return vector().is_sparse();
     }
     
+    //
+    // NVM data persistance
         
     void persist(void* cont) 
     {
-      v->persist(cont);
+      vector().persist(cont);
     }
-    
      
   private:  
     VectorAccessorAny()                                    = delete;
@@ -694,6 +779,72 @@ struct VectorAccessorAny
     VectorAccessorAny& operator=(const VectorAccessorAny&) = delete;
     
     const std::unique_ptr<VectorAccessorBase> v;
+};
+
+struct ColumnVariant
+{
+    using value_variant_t    = VectorAccessorBase::value_variant_t;
+    using pointer_variant_t  = VectorAccessorBase::pointer_variant_t;
+    using iterator_variant_t = VectorAccessorBase::iterator_variant_t;
+    using range_variant_t    = VectorAccessorBase::range_variant_t;
+
+    ColumnVariant(const VectorAccessorAny& acc, void* cont)
+    : accessor(&acc), container(cont)
+    {}
+
+    ~ColumnVariant() = default;
+
+    value_variant_t
+    cell_variant(size_t pos) const
+    {
+      return accessor->cell_variant(container, pos);
+    }
+
+    void
+    add_variant(value_variant_t&& el) const
+    {
+      accessor->add_variant(container, std::move(el));
+    }
+
+    pointer_variant_t
+    at_variant(size_t pos) const
+    {
+      return accessor->at_variant(container, pos);
+    }
+
+    value_variant_t
+    default_value_variant() const
+    {
+      return accessor->default_value_variant(container);
+    }
+
+    range_variant_t
+    range_variant() const
+    {
+      return accessor->range_variant(container);
+    }
+
+
+    //
+    // meta info
+
+    std::string
+    type_name() const
+    {
+      return accessor->type_name();
+    }
+
+    bool
+    is_sparse() const
+    {
+      return accessor->is_sparse();
+    }
+
+  private:
+    const VectorAccessorAny* accessor;
+    void*                    container;
+
+    ColumnVariant() = delete;
 };
 
 
@@ -1063,14 +1214,34 @@ struct DataFrame
     std::pair<AnyColumnIterator<T>, AnyColumnIterator<T> >
     get_any_column(const string_t& colname) const
     {
-      return get_sparse_column<T>(colIdx(colname));      
+      return get_any_column<T>(colIdx(colname));
     }
 
     template <class T>
     std::pair<AnyColumnIterator<T>, AnyColumnIterator<T> >
     get_any_column_std(const std::string& colname) const
     {
-      return get_sparse_column<T>(string_t{colname.c_str()});      
+      return get_any_column<T>(string_t{colname.c_str()});
+    }
+
+    ColumnVariant
+    get_column_variant(size_t col) const
+    {
+      ColumnRep rep = colAt(col);
+
+      return ColumnVariant{accessors[rep.first], rep.second};
+    }
+
+    ColumnVariant
+    get_column_variant(const string_t& colname) const
+    {
+      return get_column_variant(colIdx(colname));
+    }
+
+    ColumnVariant
+    get_column_variant(const std::string& colname) const
+    {
+      return get_column_variant(colIdx(string_t{colname.c_str()}));
     }
     
     std::vector<ColumnDesc>
@@ -1188,7 +1359,7 @@ struct DataFrame
       
       if (pos == allColNames->find_end())
       {
-        // [[unlikely]]
+        CXX_UNLIKELY;
         throw unknown_column_error(name + " is not a known column");
       }
       
@@ -1292,7 +1463,7 @@ struct DataFrame
       
       if (!elem) 
       { 
-        // [[unlikely]]
+        CXX_UNLIKELY;
         return accessors[rep.first].default_value<ColType>(rep.second);
         //~ throw std::logic_error("cell value not available");
       }
@@ -1310,7 +1481,7 @@ struct DataFrame
       
       if (!elem)
       {
-        // [[unlikely]]
+        CXX_UNLIKELY;
         return std::optional<ColType>{};
       }  
       

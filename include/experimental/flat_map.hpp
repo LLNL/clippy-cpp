@@ -13,15 +13,19 @@
 #include "metall/metall.hpp"
 #include "metall/tags.hpp"
 
+// use parallel algorithms only if specifically requested
+//   helps avoid issues with missing TBB which is required for GCC parallel algorithms
+#ifdef WITH_PARALLEL_STL
 
 // portability for pre-C++20 compilers
-
 #if defined __has_include
-  #if __has_include (<execution>) && !defined(__clang__)
+  #if __has_include (<execution>)
   #define CXX20_PARALLEL_EXECUTION 1
 	#include <execution>
   #endif
-#endif
+#endif /* defined __has_include */
+
+#endif /* WITH_PARALLEL_STL */
 
 #ifdef CXX20_PARALLEL_EXECUTION
 #define EXEC_STRATEGY PAR_STRATEGY,
@@ -178,8 +182,6 @@ struct flat_map : /* private */ Vector<std::pair<KeyT, ElemT>, Alloc>
     using iterator_vec       = value_type_vec*;
     using const_iterator_vec = const value_type_vec*;
     using buffer_type        = std::map<key_type, mapped_type, key_compare>;
-    
-
 
   public:
   // constructors

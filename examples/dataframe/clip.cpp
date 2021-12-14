@@ -1,12 +1,13 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 
 #include "clip.hpp"
+
 #include <boost/json/src.hpp>
 
 namespace boostjsn = boost::json;
-
 
 void resultOK(std::ostream& os, const std::string& msg)
 {
@@ -187,11 +188,24 @@ int columnIndex(const std::vector<std::string>& all, const std::string& colname)
   std::vector<std::string>::const_iterator zz  = all.end();
   std::vector<std::string>::const_iterator pos = std::find(aa, all.end(), colname);
   
-  clippy_assert<std::runtime_error>(pos != zz, "Column name not found: " + colname);
+  clippy_assert(pos != zz, "Column name not found: " + colname);
   return std::distance(aa, pos);
 }
 
-bool fail(const std::string& msg)
+bool fail( const std::string& msg
+#if __cpp_lib_source_location
+         , std::source_location pos = std::source_location::current()
+#endif /* __cpp_lib_source_location */
+         )
 {
-  clippy_assert(false, msg);
+  std::stringstream errmsg;
+
+  errmsg << msg
+#if __cpp_lib_source_location
+         << " @ " << pos.file_name
+         << " : " << pos.line
+#endif /* __cpp_lib_source_location */
+         ;
+
+  throw std::logic_error{errmsg.str()};
 }
