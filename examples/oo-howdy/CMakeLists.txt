@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: MIT
 
+add_compile_options(-Wall -Wextra -pedantic)
 
-include_directories(${Boost_INCLUDE_DIRS}) 
+include_directories(${Boost_INCLUDE_DIRS})
 
 add_example(howdy-init)
 add_example(howdy-greet)

@@ -19,7 +19,7 @@
 #include <mpi.h>
 #endif
 
-static constexpr bool LOG_JSON = false;
+static constexpr bool LOG_JSON = true;
 
 namespace clippy {
 
@@ -32,8 +32,8 @@ class clippy {
 
   /// Makes a method a member of a class \ref className and documentation \ref docString.
   void member_of(const std::string& className, const std::string& docString) {
-    get_value(m_json_config, "class_name") = className;
-    get_value(m_json_config, "class_desc") = docString;
+    get_value(m_json_config, class_name_key) = className;
+    get_value(m_json_config, class_desc_key) = docString;
   }
 
   ~clippy() {
@@ -67,6 +67,14 @@ class clippy {
     get_value(m_json_config, "args", name, "desc") = desc;
     get_value(m_json_config, "args", name, "position") = position;
   }
+
+  template <typename T>
+  void add_required_state(const std::string &name, const std::string &desc) {
+    add_required_state_validator<T>(name);
+
+    get_value(m_json_config, state_key, name, "desc") = desc;
+  }
+
 
   template <typename T>
   void add_optional(const std::string &name, const std::string &desc,
@@ -131,30 +139,36 @@ class clippy {
     }
   }
 
-  bool has_argument(const std::string &name) {
+  template <typename T>
+  T get_state(const std::string &name) const {
+    return boost::json::value_to<T>(get_value(m_json_input, state_key, name));
+  }
+
+  template <typename T>
+  void set_state(const std::string &name, T val) {
+    // if no state exists (= empty), then copy it from m_json_input if it exists there;
+    //   otherwise just start with an empty state.
+    if (m_json_state.empty())
+      if (boost::json::value* stateValue = m_json_input.get_object().if_contains(state_key))
+        m_json_state = stateValue->as_object();
+
+    m_json_state[name] = std::move(val);
+  }
+
+  bool has_argument(const std::string &name) const {
     return m_json_input.get_object().contains(name);
   }
 
-  /// returns a copy of the object state received as input
-  /// \throws a std::runtime_error if no state has been received
-  boost::json::object get_state() {
-    boost::json::value* stateValue = m_json_input.get_object().if_contains(state_key);
-
-    if (!stateValue) throw std::runtime_error("no state object");
-
-    m_json_input_state = &stateValue->as_object();
-    return *m_json_input_state;
+  bool is_class_member_function() const try {
+    return m_json_config.get_object().if_contains(class_name_key) != nullptr;
+  } catch (const std::invalid_argument&) {
+    return false;
   }
-
-  void return_state(boost::json::object newState) {
-    newState.swap(m_json_state);
-  }
-
 
  private:
   void write_response(std::ostream& os) const {
     // if there is no object state, just return the return value
-    if (m_json_state.empty()) {
+    if (!is_class_member_function()) {
       os << m_json_return << std::endl;
       return;
     }
@@ -166,8 +180,7 @@ class clippy {
     if (!m_json_return.is_null())
       json_response["returns"] = m_json_return;
 
-    // incl. the state if it is different from the input state
-    if ((m_json_input_state == nullptr) || (m_json_state != *m_json_input_state))
+    if (!m_json_state.empty())
       json_response[state_key] = m_json_state;
 
     // write the response
@@ -222,6 +235,35 @@ class clippy {
     };
   }
 
+  template <typename T>
+  void add_required_state_validator(const std::string &name) {
+    // state validator keys are prefixed with "state::"
+    std::string key{state_key};
+
+    key += "::";
+    key += name;
+
+    if (m_input_validators.count(key) > 0) {
+      throw std::runtime_error("Clippy:: Cannot have duplicate state names");
+    }
+
+    auto state_validator = [name](const boost::json::value &j) {
+      // \todo check that the path j["state"][name] exists
+      try {
+        // try the value conversion
+        boost::json::value_to<T>(get_value(j, clippy::state_key, name));
+      } catch (const std::exception &e) {
+        std::stringstream ss;
+        ss << "CLIPPy ERROR: state attribute " << name << ": \"" << e.what()
+           << "\"\n";
+        throw std::runtime_error(ss.str());
+      }
+    };
+
+    m_input_validators[key] = state_validator;
+  }
+
+
   static boost::json::value &get_value(boost::json::value &value, const std::string &key) {
     if (!value.is_object()) {
       value.emplace_object();
@@ -261,7 +303,10 @@ class clippy {
   std::map<std::string, std::function<void(const boost::json::value &)>>
       m_input_validators;
 
-  const char* state_key = "state";
+ public:
+  static constexpr const char* const state_key = "state";
+  static constexpr const char* const class_name_key = "class_name";
+  static constexpr const char* const class_desc_key = "class_desc";
 };
 
 }  // namespace clippy

@@ -15,26 +15,28 @@ static const std::string stGreeted  = "greeted";
 
 int main(int argc, char** argv)
 {
-  clippy::clippy clip{methodName, "Composes the greeting"};
+  clippy::clippy clip{methodName, "Initializes a Greeter object"};
 
   clip.member_of("Greeter", "Customizable Greeting Generator");
+
+  // object-state requirements
+  clip.add_required_state<std::string>(stGreeted, "Name to greet");
+  clip.add_required_state<std::string>(stGreeting, "Formal greeting");
+
+  // define return
   clip.returns<std::string>("The greeting text");
 
   if (clip.parse(argc, argv)) { return 0; }
 
   // the real thing
   {
-    boostjsn::object        state = clip.get_state();
-    const boostjsn::string& greeting = state[stGreeting].as_string();
-    std::string             text{greeting.cbegin(), greeting.cend()};
+    std::string text{clip.get_state<std::string>(stGreeting)};
 
     text += ' ';
-    text += state[stGreeted].as_string().c_str();
+    text += clip.get_state<std::string>(stGreeted);
 
     clip.to_return(std::move(text));
-    clip.return_state(std::move(state));
   }
-
   return 0;
 }
 

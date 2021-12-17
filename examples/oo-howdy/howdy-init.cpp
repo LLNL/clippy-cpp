@@ -23,16 +23,14 @@ int main(int argc, char** argv)
   clip.add_optional<std::string>(stGreeting, "Formal greeting", "Howdy");
   clip.add_optional<std::string>(stGreeted,  "Name to greet",   "Texas");
 
+  // no object-state requirements in constructor
+
   if (clip.parse(argc, argv)) { return 0; }
 
   // the real thing
   {
-    boostjsn::object state;
-
-    state[stGreeting] = boostjsn::value_from(clip.get<std::string>(stGreeting));
-    state[stGreeted]  = boostjsn::value_from(clip.get<std::string>(stGreeted));
-
-    clip.return_state(std::move(state));
+    clip.set_state(stGreeting, clip.get<std::string>(stGreeting));
+    clip.set_state(stGreeted,  clip.get<std::string>(stGreeted));
   }
   return 0;
 }
