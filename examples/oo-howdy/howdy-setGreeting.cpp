@@ -9,7 +9,7 @@
 
 namespace boostjsn = boost::json;
 
-static const std::string methodName = "setGreeted";
+static const std::string methodName = "setGreeting";
 static const std::string stGreeting = "greeting";
 static const std::string stGreeted  = "greeted";
 

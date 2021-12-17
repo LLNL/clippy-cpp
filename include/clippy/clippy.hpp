@@ -252,8 +252,9 @@ class clippy {
     auto state_validator = [name](const boost::json::value &j) {
       // \todo check that the path j["state"][name] exists
       try {
-        // try the value conversion
-        boost::json::value_to<T>(get_value(j, clippy::state_key, name));
+        // try access path and value conversion
+        boost::json::value_to<T>(j.as_object().at(clippy::state_key).as_object().at(name));
+        //~ boost::json::value_to<T>(get_value(j, clippy::state_key, name));
       } catch (const std::exception &e) {
         std::stringstream ss;
         ss << "CLIPPy ERROR: state attribute " << name << ": \"" << e.what()
