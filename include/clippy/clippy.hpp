@@ -19,7 +19,7 @@
 #include <mpi.h>
 #endif
 
-static constexpr bool LOG_JSON = true;
+static constexpr bool LOG_JSON = false;
 
 namespace clippy {
 
@@ -167,7 +167,7 @@ class clippy {
 
  private:
   void write_response(std::ostream& os) const {
-    // if there is no object state, just return the return value
+    // if this is not a member function, just return the response
     if (!is_class_member_function()) {
       os << m_json_return << std::endl;
       return;
@@ -180,6 +180,8 @@ class clippy {
     if (!m_json_return.is_null())
       json_response["returns"] = m_json_return;
 
+    // only communicate the state if it has been explicitly set.
+    //   no state -> no state update
     if (!m_json_state.empty())
       json_response[state_key] = m_json_state;
 
