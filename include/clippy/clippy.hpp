@@ -19,7 +19,7 @@
 #include <mpi.h>
 #endif
 
-static constexpr bool LOG_JSON = false;
+static constexpr bool LOG_JSON = true;
 
 namespace clippy {
 
@@ -83,6 +83,12 @@ class clippy {
     get_value(m_json_config, "args", name, "desc") = desc;
     get_value(m_json_config, "args", name, "position") = -1;
     get_value(m_json_config, "args", name, "default_val") = boost::json::value_from(default_val);
+  }
+
+
+  template <typename T>
+  void add_selector(const std::string &name, const std::string &desc) {
+    get_value(m_json_config, "selectors", name, "desc") = desc;
   }
 
   template <typename T>

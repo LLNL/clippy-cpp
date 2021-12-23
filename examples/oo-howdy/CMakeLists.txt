@@ -11,4 +11,5 @@ add_example(howdy-init)
 add_example(howdy-greet)
 add_example(howdy-setGreeting)
 add_example(howdy-setGreeted)
+add_example(howdy-getitem)
 
