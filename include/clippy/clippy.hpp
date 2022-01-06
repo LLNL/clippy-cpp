@@ -307,7 +307,7 @@ class clippy {
       m_input_validators;
 
  public:
-  static constexpr const char* const state_key = "__state__";
+  static constexpr const char* const state_key = "_state";
   static constexpr const char* const class_name_key = "class_name";
   static constexpr const char* const class_desc_key = "class_desc";
 };
