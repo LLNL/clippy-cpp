@@ -10,11 +10,13 @@ const std::string METHOD_NAME         = "extreme";
 const std::string ARG_CRITERIA_FUN    = "function";
 const std::string ARG_CRITERIA_COL    = "column";
 
+/*
 template <class ColType>
 std::string quote(const ColType*) { return ""; }
 
 template<>
 std::string quote<xpr::string_t>(const xpr::string_t*) { return "\""; }
+*/
 
 int columnIndex(const std::vector<std::string>& all, const std::string& colname)
 {
@@ -30,7 +32,7 @@ int columnIndex(const std::vector<std::string>& all, const std::string& colname)
 
 template <class ColType>
 bool
-applyColFunctionIf(std::ostream& os, xpr::DataFrame& df, size_t colnum, const xpr::ColumnDesc& desc, const std::string& funname)
+applyColFunctionIf(clippy::object& res, xpr::DataFrame& df, size_t colnum, const xpr::ColumnDesc& desc, const std::string& funname)
 {
   using Iterator = xpr::AnyColumnIterator<ColType>;
 
@@ -38,27 +40,29 @@ applyColFunctionIf(std::ostream& os, xpr::DataFrame& df, size_t colnum, const xp
     return false;
 
   std::pair<Iterator, Iterator> range = df.get_any_column<ColType>(colnum);
-  std::string                   quotes = quote(xpr::tag<ColType>());
-
+  
   Iterator pos = (funname == "min") ? std::min_element(range.first, range.second)
                                     : std::max_element(range.first, range.second)
                                     ;
-
-  os << "{ \"id\": " << pos.row() << ", \"value\": " << quotes << *pos << quotes
-     << "}"
-     << std::flush;
-
+  
+  res.set_val("id",    pos.row());
+  res.set_val("value", *pos);                                   
   return true;
 }
 
-void columnFunction(std::ostream& os, xpr::DataFrame& df, int colnum, const xpr::ColumnDesc& desc, const std::string& funname)
+clippy::object
+columnFunction(xpr::DataFrame& df, int colnum, const xpr::ColumnDesc& desc, const std::string& funname)
 {
+  clippy::object res;
+  
   FirstMatch
-  || applyColFunctionIf<xpr::int_t>   (os, df, colnum, desc, funname)
-  || applyColFunctionIf<xpr::uint_t>  (os, df, colnum, desc, funname)
-  || applyColFunctionIf<xpr::real_t>  (os, df, colnum, desc, funname)
-  || applyColFunctionIf<xpr::string_t>(os, df, colnum, desc, funname)
+  || applyColFunctionIf<xpr::int_t>   (res, df, colnum, desc, funname)
+  || applyColFunctionIf<xpr::uint_t>  (res, df, colnum, desc, funname)
+  || applyColFunctionIf<xpr::real_t>  (res, df, colnum, desc, funname)
+  || applyColFunctionIf<xpr::string_t>(res, df, colnum, desc, funname)
   || fail("internal error: unexpected column type" + desc.column_type);
+  
+  return res;
 }
 
 std::string validateFunction(std::string func)
@@ -99,11 +103,10 @@ int main(int argc, char** argv)
 
     if (colDescs.size() != 1)
       fail("internal error: unexpected number of columns");
-
-    std::stringstream               msg;
-
-    columnFunction(msg, df, col, colDescs.front(), funname);
-    clip.to_return(msg.str());
+      
+    clippy::object                  res = columnFunction(df, col, colDescs.front(), funname);
+    
+    clip.to_return(std::move(res));
   }
   catch (const std::exception& err)
   {

@@ -12,4 +12,5 @@ add_example(df-importFile)
 add_example(df-metadata)
 add_example(df-extreme)
 add_example(df-rowquery)
+add_example(df-identity)
 

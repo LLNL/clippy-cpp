@@ -13,6 +13,9 @@
 #include <fstream>
 #include <sstream>
 #include <utility>
+
+#include "clippy-object.hpp"
+
 #include <boost/json/src.hpp>
 
 #if __has_include(<mpi.h>)
@@ -31,6 +34,9 @@ class clippy {
   }
 
   /// Makes a method a member of a class \ref className and documentation \ref docString.
+  // \todo Shall we also model the module name?
+  //       The Python serialization module has preliminary support for modules, 
+  //       but this is currently not used.
   void member_of(const std::string& className, const std::string& docString) {
     get_value(m_json_config, class_name_key) = className;
     get_value(m_json_config, class_desc_key) = docString;
@@ -97,14 +103,27 @@ class clippy {
   }
 
   template <typename T>
-  void to_return(const T &value) {
+  void to_return(const T& value) {
     // if (detail::get_type_name<T>() !=
     //     m_json_config["returns"]["type"].get<std::string>()) {
     //   throw std::runtime_error("clippy::to_return(value):  Invalid type.");
     // }
     m_json_return = boost::json::value_from(value);
   }
-
+  
+/*  
+  void to_return(clippy::value value) {
+    m_json_return = std::move(value);
+  }
+*/  
+  void to_return(::clippy::object value) {
+    m_json_return = std::move(value).json();
+  }
+  
+  void to_return(::clippy::array value) {
+    m_json_return = std::move(value).json();
+  }
+  
   bool parse(int argc, char **argv) {
     const char *JSON_FLAG = "--clippy-help";
     const char *DRYRUN_FLAG = "--clippy-validate";

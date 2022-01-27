@@ -11,7 +11,6 @@ using ColumnDescription = std::pair<std::string, std::string>;
 const std::string& type(const ColumnDescription& col) { return col.second; } 
 const std::string& name(const ColumnDescription& col) { return col.first; } 
 
-
 static const std::string METHOD_NAME = "__init__";
 static const std::string ARG_COLUMN_DESC = "columns";
 
@@ -49,31 +48,39 @@ int main(int argc, char** argv)
 
   clip.add_required<std::string>(ST_METALL_LOCATION, "Location of the Metall store");
   clip.add_required<std::string>(ST_DATAFRAME_NAME,  "Name of the dataframe object within the Metall store");
-  clip.add_required<std::vector<ColumnDescription>>( ARG_COLUMN_DESC, 
+  
+  // ARG_COLUMN_DESC is optional. If not present, the __init__ method assumes that we want to 
+  //   reopen an existing dataframe.
+  clip.add_optional<std::vector<ColumnDescription>>( ARG_COLUMN_DESC, 
                                                      "Column description (pair of string/string describing name and type of columns)."
-                                                     "\n  Valid types in (string | int | uint | real)"
+                                                     "\n  Valid types in (string | int | uint | real)",
+                                                     std::vector<ColumnDescription>{}
                                                    );
   
-	// no object-state requirements in constructor
-
+  // no object-state requirements in constructor
   if (clip.parse(argc, argv)) { return 0; }
 
   // the real thing
   try
   {
-	  // try to create the object
-		std::string                     location = clip.get<std::string>(ST_METALL_LOCATION);
-		std::string                     key      = clip.get<std::string>(ST_DATAFRAME_NAME);
-		std::vector<ColumnDescription>  column_desc = clip.get<std::vector<ColumnDescription>>(ARG_COLUMN_DESC);
+    // try to create the object
+    std::string                     location  = clip.get<std::string>(ST_METALL_LOCATION);
+    std::string                     key       = clip.get<std::string>(ST_DATAFRAME_NAME);
+    const bool                      createNew = clip.has_argument(ARG_COLUMN_DESC);
+    std::unique_ptr<xpr::DataFrame> dfp       = makeDataFrame(createNew, location, key);
+    xpr::DataFrame&                 df        = *dfp;
 
-		std::unique_ptr<xpr::DataFrame> dfp = makeDataFrame(true, location, key);
-	  xpr::DataFrame&                 df  = *dfp;
-
-    appendColumns(df, column_desc);
+    if (createNew) 
+    {
+      // add the specified columns to the dataframe object.
+      std::vector<ColumnDescription> column_desc = clip.get<std::vector<ColumnDescription>>(ARG_COLUMN_DESC);
+      
+      appendColumns(df, column_desc);
+    }
 
     // set the return values
-    clip.set_state(ST_METALL_LOCATION, location);
-    clip.set_state(ST_DATAFRAME_NAME,  key);
+    clip.set_state(ST_METALL_LOCATION, std::move(location));
+    clip.set_state(ST_DATAFRAME_NAME,  std::move(key));
   }
   catch (const std::runtime_error& ex)
   {

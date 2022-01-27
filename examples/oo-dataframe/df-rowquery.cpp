@@ -10,41 +10,25 @@ const std::string METHOD_NAME         = "rowquery";
 const std::string ARG_ROWID_ARRAY     = "rows";
 
 template <class ColType>
-std::string quote(const ColType*) { return ""; }
-
-template<>
-std::string quote<xpr::string_t>(const xpr::string_t*) { return "\""; }
-
-
-template <class ColType>
-bool printVariant(std::ostream& os, const xpr::dataframe_variant_t& el)
+bool printVariant(clippy::object& data, const std::string& colname, const xpr::dataframe_variant_t& el)
 {
   if (const auto& val = std::get_if<ColType>(&el))
   {
-    std::string quotes = quote(xpr::tag<ColType>());
-    
-    os << quotes << *val << quotes;
+    data.set_val(colname, *val);
     return true;
   }
   
   return false;
 }
 
-struct VariantWriter
-{
-  xpr::dataframe_variant_t el;
-};
-
-std::ostream& operator<<(std::ostream& os, const VariantWriter& v)
+void setVariant(clippy::object& data, const std::string& colname, const xpr::dataframe_variant_t& el)
 {
   FirstMatch
-  || printVariant<xpr::int_t>   (os, v.el)
-  || printVariant<xpr::uint_t>  (os, v.el)
-  || printVariant<xpr::real_t>  (os, v.el)
-  || printVariant<xpr::string_t>(os, v.el)
+  || printVariant<xpr::int_t>   (data, colname, el)
+  || printVariant<xpr::uint_t>  (data, colname, el)
+  || printVariant<xpr::real_t>  (data, colname, el)
+  || printVariant<xpr::string_t>(data, colname, el)
   || fail("unknown dataframe variant type");
-  
-  return os;
 }
 
 
@@ -74,30 +58,26 @@ int main(int argc, char** argv)
     std::vector<int>                colIndcs = allColumnIndices(df);
     std::vector<xpr::ColumnDesc>    colDescs = df.get_column_descriptors(colIndcs);
     std::vector<std::string>        colNames = df.get_column_names();
-    std::stringstream               msg;
-    bool                            firstrow = true;
-
-    msg << "{ \"data\": [";
     
+    clippy::array                   res;
+
     for (int row : selected)
     {
+      clippy::object elem;
+      
       std::vector<xpr::dataframe_variant_t> rowval = df.get_row_variant(row, colIndcs);
       
       if (colNames.size() != rowval.size())
         fail("internal error: size mismatch between columns and column names"); 
       
-      msg << (firstrow ? "" : ", ")
-          << "{ \"id\": " << row;
-                
+      elem.set_val("id", row);      
       for (size_t i = 0; i < colNames.size(); ++i)
-        msg << ", \"" << colNames.at(i) << "\": " << VariantWriter{rowval.at(i)};
+        setVariant(elem, colNames.at(i), rowval.at(i)); 
       
-      msg << "}";
-      firstrow = false;
+      res.append_json(std::move(elem));
     }
-    msg << "]}" << std::endl;
-
-    clip.to_return(msg.str());
+    
+    clip.to_return(std::move(res));
   }
   catch (const std::exception& err)
   {

@@ -35,21 +35,20 @@ int main(int argc, char** argv)
     
     assert(colDescs.size() == colNames.size());
 
-    std::stringstream               msg;
-    
-    msg << "{";
+    clippy::array                   res;
     
     for (size_t i = 0; i < colNames.size(); ++i)
     {
-      msg << (i == 0 ? "\n" : ",\n")
-          << "  [ \"name\" : \"" << colNames.at(i) << "\", "
-          << "\"type\" : \"" << colDescs.at(i).column_type << "\", " 
-          << "\"sparse\" : \"" << (colDescs.at(i).is_sparse_column ? "true" : "false") << "\"]"; 
+      clippy::object elem;
+      
+      elem.set_val("name",   colNames.at(i));
+      elem.set_val("type",   colDescs.at(i).column_type);
+      elem.set_val("sparse", (colDescs.at(i).is_sparse_column ? "true" : "false"));
+      
+      res.append_json(std::move(elem));      
     }
     
-    msg << "\n}";
-    
-    clip.to_return(msg.str());
+    clip.to_return(res);
   }
   catch (const std::exception& err)
   {

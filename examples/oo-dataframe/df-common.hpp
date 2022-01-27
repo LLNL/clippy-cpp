@@ -49,11 +49,11 @@ namespace
 
   CXX_NORETURN
   inline 
-	bool fail(std::string msg)
-	{
-	  throw std::runtime_error{std::move(msg)};
-		return false;
-	}
+  bool fail(std::string msg)
+  {
+    throw std::runtime_error{std::move(msg)};
+    return false;
+  }
 }
 
 

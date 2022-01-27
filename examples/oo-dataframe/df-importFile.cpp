@@ -46,8 +46,8 @@ makeDataConverter(xpr::DataFrame& df)
 {
   const std::vector<int>             colIndcs = allColumnIndices(df);
   const std::vector<xpr::ColumnDesc> colDescs = df.get_column_descriptors(colIndcs);
-	
-	std::vector<DataConverter>         res;   
+  
+  std::vector<DataConverter>         res;   
   
   for (const xpr::ColumnDesc& col : colDescs)
   {
@@ -66,10 +66,10 @@ makeDataConverter(xpr::DataFrame& df)
 std::string validateFilename(std::string filename)
 {
   if (filename.size() == 0)
-	  fail("filename not provided");
+    fail("filename not provided");
 
-	if (!boost::ends_with(boost::to_upper_copy(filename), ".CSV"))
-	  fail("filename does not end with \".csv\".");
+  if (!boost::ends_with(boost::to_upper_copy(filename), ".CSV"))
+    fail("filename does not end with \".csv\".");
 
   return filename;
 }
@@ -84,8 +84,8 @@ int main(int argc, char** argv)
   clip.member_of("Dataframe", "A dataframe");
   
   clip.add_required<std::string>( ARG_IMPORTED, 
-	                                "Imported File. Currently only CSV format is supported." 
-	                                "\n  The entries in the file need to follow the defined dataframe format."
+                                  "Imported File. Currently only CSV format is supported." 
+                                  "\n  The entries in the file need to follow the defined dataframe format."
                                 );
   clip.add_required_state<std::string>(ST_METALL_LOCATION, "Metall storage location");
   clip.add_required_state<std::string>(ST_DATAFRAME_NAME,  "Name of the dataframe object");
@@ -95,22 +95,22 @@ int main(int argc, char** argv)
   try
   {  
     std::string                     filename = validateFilename(clip.get<std::string>(ARG_IMPORTED));
-		std::string                     location = clip.get_state<std::string>(ST_METALL_LOCATION);
+    std::string                     location = clip.get_state<std::string>(ST_METALL_LOCATION);
     std::string                     key = clip.get_state<std::string>(ST_DATAFRAME_NAME);
-		std::unique_ptr<xpr::DataFrame> dfp = makeDataFrame(false, location, key);
-		xpr::DataFrame&                 df  = *dfp;
+    std::unique_ptr<xpr::DataFrame> dfp = makeDataFrame(false, location, key);
+    xpr::DataFrame&                 df  = *dfp;
     const int                       numrows = df.rows();
     std::stringstream               msg;
     
     xpr::importCSV_variant(df, filename, makeDataConverter(df));
     msg << (df.rows()-numrows) << " records imported" << std::flush;
     
-		clip.to_return(msg.str());
+    clip.to_return(msg.str());
   }
   catch (const std::exception& err)
   {
-	  error_code = 1;
-		clip.to_return(err.what());
+    error_code = 1;
+    clip.to_return(err.what());
   }
 
   return error_code;
