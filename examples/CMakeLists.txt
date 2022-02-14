@@ -38,6 +38,7 @@ add_example(sort_string_edges)
 
 add_subdirectory(wordcounter)
 add_subdirectory(dataframe)
+add_subdirectory(dataframe-load)
 add_subdirectory(oo-howdy)
 add_subdirectory(oo-dataframe)
 add_subdirectory(mpi)

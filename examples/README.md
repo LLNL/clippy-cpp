@@ -14,7 +14,9 @@ Python, for example.
 - [sum.cpp](sum.cpp): Example of Number input and output
 - [sort_edges.cpp](sort_edges.cpp): Example of VectorIntInt input and output, also contains optional Boolean.
 - [sort_strings.cpp](sort_strings.cpp): Example of VectorStrings input and output, also contains optional Boolean.
-- [grumpy.cpp](grumpy.cpp): Example of exception throwing in C++ backend.  Grumpy always throws a std::runtime_error()
+- [grumpy.cpp](grumpy.cpp): Example of exception throwing in C++ backend. Grumpy always throws a std::runtime_error()
+- [dataframe](dataframe): Example with a dataframe class using freestanding clippy functions (clippy)
+- [oo-dataframe](oo-dataframe): Example with a dataframe class using clippy objects (ooclippy)
 
 ## Building
 Edit the `Makefile` as necessary and run `make`.
