@@ -15,25 +15,34 @@ static const std::string expr = "expressions";
 static const std::string selLetters  = "letters";
 static const std::string selFieldAll  = "all";
 static const std::string selFieldVowels  = "vowels";
-static const std::string selFieldConsonents  = "consonents";
+static const std::string selFieldConsonants  = "consonants";
 
 int main(int argc, char** argv)
 {
+  int            error_code = 0;
   clippy::clippy clip{methodName, "Initializes a Greeter object"};
 
   clip.member_of("Greeter", "Customizable Greeting Generator");
-
+  
   clip.add_required<std::vector<boost::json::object>>(expr, "Expression selection");
+  //~ clip.add_required<boost::json::object>(expr, "Expression selection");
+  //~ clip.add_required<clippy::object>(expr, "Expression selection");
   clip.add_selector<std::string>(selLetters, "selector for letters of the greeting");
   clip.returns<std::vector<std::string>>("Expression result");
-
+  
   if (clip.parse(argc, argv)) { return 0; }
-
+  
   // the real thing
-  {
-    auto json_expression = clip.get<std::vector<boost::json::object>>(expr);
+  try
+  { 
+    std::vector<boost::json::object> json_expression = clip.get<std::vector<boost::json::object>>(expr);
+    //~ boost::json::object json_expression = clip.get<boost::json::object>(expr);
+    //~ clippy::object json_expression = clip.get<clippy::object>(expr);
+    
+    /*
     std::ofstream logfile{"clippy.log", std::ofstream::app};
     logfile << "json_expression:" << json_expression[1] << std::endl;
+    */
 
     // TODO actually filter the greeter state strings (greeting and greeted) based on the json_expression
     //      and return a new Greeter with the state set based on the results
@@ -45,9 +54,13 @@ int main(int argc, char** argv)
     result.push_back("c");
     clip.to_return(result);
   }
+  catch (const std::exception& err)
+  {
+    clip.to_return(err.what());
+    error_code = 1;
+  }
 
-  
-  return 0;
+  return error_code;
 }
 
 

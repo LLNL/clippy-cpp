@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: MIT
 
+set(CMAKE_BUILD_TYPE Debug)
+
 add_compile_options(-Wall -Wextra -pedantic)
 
 include_directories(${Boost_INCLUDE_DIRS})

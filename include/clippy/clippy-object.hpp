@@ -50,7 +50,11 @@ namespace clippy {
       object(object&&)                 = default;
       object& operator=(const object&) = default;
       object& operator=(object&&)      = default;
-    
+      
+      object(const json_type& dat)
+      : data(dat)
+      {}
+      
       template <class JsonType>
       void set_json(const std::string& key, JsonType val)
       {

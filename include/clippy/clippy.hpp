@@ -22,9 +22,42 @@
 #include <mpi.h>
 #endif
 
-static constexpr bool LOG_JSON = true;
+
+#if __has_include("clippy-log.hpp")
+#include "clippy-log.hpp"
+#else
+static constexpr bool LOG_JSON = false;
+#endif
+
 
 namespace clippy {
+  
+  namespace
+  {
+    template <class T>
+    struct is_container
+    {
+      enum { value = false, };
+    };
+    
+    template <class T, class Alloc>
+    struct is_container<std::vector<T, Alloc>>
+    {
+      enum { value = true, };
+    };
+    
+    boost::json::value
+    asContainer(boost::json::value val, bool requiresContainer)
+    {
+      if (!requiresContainer) return val;
+      if (val.is_array()) return val;
+      
+      boost::json::array res;
+      
+      res.emplace_back(std::move(val));
+      return res;
+    }      
+  }
 
 class clippy {
  public:
@@ -64,6 +97,19 @@ class clippy {
         }
       }
     }
+  }
+  
+  template <class M>
+  void log(std::ofstream& logfile, const M& msg) {
+    if (LOG_JSON) logfile << msg << std::flush;
+  }
+
+  template <class M>
+  void log(const M& msg) {
+    if (!LOG_JSON) return;
+    
+    std::ofstream logfile{"clippy.log", std::ofstream::app};
+    log(logfile, msg);
   }
 
   template <typename T>
@@ -156,11 +202,13 @@ class clippy {
 
   template <typename T>
   T get(const std::string &name) {
+    static constexpr bool requires_container = is_container<T>::value;
+    
     if (has_argument(name)) {  // if the argument exists
-      return boost::json::value_to<T>(get_value(m_json_input, name));
+      return boost::json::value_to<T>(asContainer(get_value(m_json_input, name), requires_container));
     } else {  // it's an optional
       // std::cout << "optional argument found: " + name << std::endl;
-      return boost::json::value_to<T>(get_value(m_json_config, "args", name, "default_val"));
+      return boost::json::value_to<T>(asContainer(get_value(m_json_config, "args", name, "default_val"), requires_container));
     }
   }
 
@@ -230,7 +278,9 @@ class clippy {
     m_input_validators[name] = [name](const boost::json::value &j) {
       if (!j.get_object().contains(name)) { return; }  // Optional, only eval if present
       try {
-        boost::json::value_to<T>(get_value(j, name));
+        static constexpr bool requires_container = is_container<T>::value;
+        
+        boost::json::value_to<T>(asContainer(get_value(j, name), requires_container));
       } catch (const std::exception &e) {
         std::stringstream ss;
         ss << "CLIPPy ERROR:  Optional argument " << name << ": \"" << e.what()
@@ -252,7 +302,9 @@ class clippy {
         throw std::runtime_error(ss.str());
       }
       try {
-        boost::json::value_to<T>(get_value(j, name));
+        static constexpr bool requires_container = is_container<T>::value;
+        
+        boost::json::value_to<T>(asContainer(get_value(j, name), requires_container));
       } catch (const std::exception &e) {
         std::stringstream ss;
         ss << "CLIPPy ERROR:  Required argument " << name << ": \"" << e.what()
