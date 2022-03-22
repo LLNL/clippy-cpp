@@ -1,295 +1,833 @@
 
 #pragma once
 
+#include <exception>
+#include <algorithm>
+#include <string>
+#include <limits>
+#include <memory>
+
+#include <boost/json.hpp>
+
+#include <experimental/cxx-compat.hpp>
+
 namespace json_logic
 {
+  constexpr bool DEBUG_OUTPUT    = true;
+  constexpr bool DEBUG_EVALSTACK = false;
+
   namespace json = boost::json;
 
   using JsonExpr = json::value;
 
-  struct Expr {};
+  template <class T>
+  T& as(T& n) { return n; }
 
+  template <class T>
+  T& deref(T* p)
+  {
+    assert(p);
+    return *p;
+  }
+
+  struct Visitor;
+
+  // the root class
+  struct Expr
+  {
+      Expr()          = default;
+      virtual ~Expr() = default;
+
+      virtual void accept(Visitor&) = 0;
+
+    private:
+      Expr(Expr&&)                 = delete;
+      Expr(const Expr&)            = delete;
+      Expr& operator=(Expr&&)      = delete;
+      Expr& operator=(const Expr&) = delete;
+  };
+
+  //~ Expr::~Expr() {}
+
+  //
+  // foundation classes
+  // \{
+
+  using AnyExpr = std::unique_ptr<Expr>;
+
+  struct Operator : Expr, private std::vector<AnyExpr>
+  {
+    using container_type = std::vector<AnyExpr>;
+
+    using container_type::iterator;
+    using container_type::const_iterator;
+    using container_type::const_reverse_iterator;
+    using container_type::reverse_iterator;
+    using container_type::begin;
+    using container_type::end;
+    using container_type::rbegin;
+    using container_type::rend;
+    using container_type::crbegin;
+    using container_type::crend;
+    using container_type::back;
+    using container_type::push_back;
+
+    void set_operands(container_type&& opers)
+    {
+      this->swap(opers);
+    }
+
+    virtual int num_evaluated_operands() const;
+  };
+
+  // defines operators that have an upper bound on how many
+  //   arguments are evaluated.
+  template <int MaxArity>
+  struct OperatorN : Operator
+  {
+    enum { MAX_OPERANDS = MaxArity };
+
+    int num_evaluated_operands() const final;
+  };
+
+  template <class T>
+  struct Value : Expr
+  {
+      using value_type = T;
+
+      explicit
+      Value(T t)
+      : val(std::move(t))
+      {}
+
+      T&       value()       { return val; }
+      const T& value() const { return val; }
+
+    private:
+      T val;
+  };
+
+  // \}
+
+  //
+  // expression hierarchy
   // comparison
-  struct Eq        : Expr {};
-  struct StrictEq  : Expr {};
-  struct Neq       : Expr {};
-  struct StrictNeq : Expr {};
-  struct Less      : Expr {};
-  struct Greater   : Expr {};
-  struct Leq       : Expr {};
-  struct Geq       : Expr {};
+
+  // binary
+  struct Eq        : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct StrictEq  : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Neq       : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct StrictNeq : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  // binary or ternary
+  struct Less      : OperatorN<3>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Greater   : OperatorN<3>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Leq       : OperatorN<3>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Geq       : OperatorN<3>
+  {
+    void accept(Visitor&) final;
+  };
 
   // logical operators
-  struct And       : Expr {}
-  struct Or        : Expr {}
-  struct Not       : Expr {}
-  struct NotNot    : Expr {}
-  struct If        : Expr {}
+
+  // unary
+  struct Not       : OperatorN<1>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct NotNot    : OperatorN<1>
+  {
+    void accept(Visitor&) final;
+  };
+
+  // n-ary
+  struct And       : Operator
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Or        : Operator
+  {
+    void accept(Visitor&) final;
+  };
+
+
+  // control structure
+  struct If        : Operator
+  {
+    void accept(Visitor&) final;
+  };
 
   // arithmetics
-  struct Add       : Expr {};
-  struct Sub       : Expr {};
-  struct Mul       : Expr {};
-  struct Div       : Expr {};
-  struct Mod       : Expr {};
-  struct Min       : Expr {};
-  struct Max       : Expr {};
+  // n-ary
+  struct Add       : Operator
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Mul       : Operator
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Min       : Operator
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Max       : Operator
+  {
+    void accept(Visitor&) final;
+  };
+
+
+  // binary
+  struct Sub       : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Div       : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Mod       : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
 
   // array
-  struct Map       : Expr {};
-  struct Reduce    : Expr {};
-  struct Filter    : Expr {};
-  struct All       : Expr {};
-  struct None      : Expr {};
-  struct Some      : Expr {};
-  struct Merge     : Expr {};
+  struct Array     : Operator  // array is modeled as operator
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Map       : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Reduce    : OperatorN<3>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Filter    : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct All       : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct None      : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Some      : OperatorN<2>
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Merge     : Operator
+  {
+    void accept(Visitor&) final;
+  };
+
 
   // string operations
-  struct Cat       : Expr {};
-  struct Substr    : Expr {};
+  struct Var       : OperatorN<1>
+  {
+      enum { computed = -1 };
+
+      void accept(Visitor&) final;
+
+      void num(int val)       { idx = val;  }
+      int  num()        const { return idx; }
+
+    private:
+      int idx = computed;
+  };
+
+  struct Cat       : Operator
+  {
+    void accept(Visitor&) final;
+  };
+
+  struct Substr    : OperatorN<3>
+  {
+    void accept(Visitor&) final;
+  };
+
 
   // string and array operation
-  struct In        : Expr {};
+  struct In        : Operator
+  {
+    void accept(Visitor&) final;
+  };
 
-  // variable
-  struct Var       : Expr {};
 
-  // error node
-  struct Error     : Expr {};
+  // values
+  struct NullVal   : Expr
+  {
+    void accept(Visitor&) final;
+
+    std::nullptr_t value() const { return nullptr; }
+  };
+
+  struct BoolVal   : Value<bool>
+  {
+    using base = Value<bool>;
+    using base::base;
+
+    void accept(Visitor&) final;
+  };
+
+  struct IntVal    : Value<std::int64_t>
+  {
+    using base = Value<std::int64_t>;
+    using base::base;
+
+    void accept(Visitor&) final;
+  };
+
+  struct UintVal   : Value<std::uint64_t>
+  {
+    using base = Value<std::uint64_t>;
+    using base::base;
+
+    void accept(Visitor&) final;
+  };
+
+  struct DoubleVal : Value<double>
+  {
+    using base = Value<double>;
+    using base::base;
+
+    void accept(Visitor&) final;
+  };
+
+  struct StringVal : Value<json::string>
+  {
+    using base = Value<json::string>;
+    using base::base;
+
+    void accept(Visitor&) final;
+  };
 
   // logger
-  struct Log       : Expr {};
+  struct Log       : OperatorN<1>
+  {
+    void accept(Visitor&) final;
+  };
 
-/*
-  // types
-  struct Type {};
-  struct Int     : Type {};
-  struct Real    : Type {};
-  struct String  : Type {};
-*/
+  // error node
+  struct Error     : Expr
+  {
+    void accept(Visitor&) final;
+  };
+
 
   // Visitor
   struct Visitor
   {
-    virtual void visit(JsonExpr&, const Expr&)         = 0; // error
-    virtual void visit(JsonExpr&, const Eq&)           = 0;
-    virtual void visit(JsonExpr&, const StrictEq&)     = 0;
-    virtual void visit(JsonExpr&, const Neq&)          = 0;
-    virtual void visit(JsonExpr&, const StrictNeq&)    = 0;
-    virtual void visit(JsonExpr&, const Less&)         = 0;
-    virtual void visit(JsonExpr&, const Greater&)      = 0;
-    virtual void visit(JsonExpr&, const Leq&)          = 0;
-    virtual void visit(JsonExpr&, const Geq&)          = 0;
-    virtual void visit(JsonExpr&, const And&)          = 0;
-    virtual void visit(JsonExpr&, const Or&)           = 0;
-    virtual void visit(JsonExpr&, const Not&)          = 0;
-    virtual void visit(JsonExpr&, const NotNot&)       = 0;
-    virtual void visit(JsonExpr&, const Add&)          = 0;
-    virtual void visit(JsonExpr&, const Sub&)          = 0;
-    virtual void visit(JsonExpr&, const Mul&)          = 0;
-    virtual void visit(JsonExpr&, const Div&)          = 0;
-    virtual void visit(JsonExpr&, const Mod&)          = 0;
-    virtual void visit(JsonExpr&, const Min&)          = 0;
-    virtual void visit(JsonExpr&, const Max&)          = 0;
-    virtual void visit(JsonExpr&, const Map&)          = 0;
-    virtual void visit(JsonExpr&, const Reduce&)       = 0;
-    virtual void visit(JsonExpr&, const Filter&)       = 0;
-    virtual void visit(JsonExpr&, const All&)          = 0;
-    virtual void visit(JsonExpr&, const None&)         = 0;
-    virtual void visit(JsonExpr&, const Some&)         = 0;
-    virtual void visit(JsonExpr&, const Merge&)        = 0;
-    virtual void visit(JsonExpr&, const Cat&)          = 0;
-    virtual void visit(JsonExpr&, const Substr&)       = 0;
-    virtual void visit(JsonExpr&, const In&)           = 0;
-    virtual void visit(JsonExpr&, const Var&)          = 0;
-    virtual void visit(JsonExpr&, const Log&)          = 0;
-    virtual void visit(JsonExpr&, const Error&)        = 0;
+    virtual void visit(Expr&)         = 0; // error
+    virtual void visit(Operator& n)   = 0;
+    virtual void visit(Eq&)           = 0;
+    virtual void visit(StrictEq&)     = 0;
+    virtual void visit(Neq&)          = 0;
+    virtual void visit(StrictNeq&)    = 0;
+    virtual void visit(Less&)         = 0;
+    virtual void visit(Greater&)      = 0;
+    virtual void visit(Leq&)          = 0;
+    virtual void visit(Geq&)          = 0;
+    virtual void visit(And&)          = 0;
+    virtual void visit(Or&)           = 0;
+    virtual void visit(Not&)          = 0;
+    virtual void visit(NotNot&)       = 0;
+    virtual void visit(Add&)          = 0;
+    virtual void visit(Sub&)          = 0;
+    virtual void visit(Mul&)          = 0;
+    virtual void visit(Div&)          = 0;
+    virtual void visit(Mod&)          = 0;
+    virtual void visit(Min&)          = 0;
+    virtual void visit(Max&)          = 0;
+    virtual void visit(Map&)          = 0;
+    virtual void visit(Reduce&)       = 0;
+    virtual void visit(Filter&)       = 0;
+    virtual void visit(All&)          = 0;
+    virtual void visit(None&)         = 0;
+    virtual void visit(Some&)         = 0;
+    virtual void visit(Array&)        = 0;
+    virtual void visit(Merge&)        = 0;
+    virtual void visit(Cat&)          = 0;
+    virtual void visit(Substr&)       = 0;
+    virtual void visit(In&)           = 0;
+    virtual void visit(Var&)          = 0;
+    virtual void visit(Log&)          = 0;
+
+    // control structure
+    virtual void visit(If&)           = 0;
 
     // values
-    virtual void visit(JsonExpr&, std::int64_t)        = 0;
-    virtual void visit(JsonExpr&, std::uint64_t)       = 0;
-    virtual void visit(JsonExpr&, double)              = 0;
-    virtual void visit(JsonExpr&, const json::array&)  = 0;
-    virtual void visit(JsonExpr&, const json::string&) = 0;
+    virtual void visit(NullVal&)      = 0;
+    virtual void visit(BoolVal&)      = 0;
+    virtual void visit(IntVal&)       = 0;
+    virtual void visit(UintVal&)      = 0;
+    virtual void visit(DoubleVal&)    = 0;
+    virtual void visit(StringVal&)    = 0;
+    //~ virtual void visit(ObjectVal&)    = 0;
+
+    virtual void visit(Error&)        = 0;
   };
+
+  // accept implementations
+  void Eq::accept(Visitor& v)        { v.visit(*this); }
+  void StrictEq::accept(Visitor& v)  { v.visit(*this); }
+  void Neq::accept(Visitor& v)       { v.visit(*this); }
+  void StrictNeq::accept(Visitor& v) { v.visit(*this); }
+  void Less::accept(Visitor& v)      { v.visit(*this); }
+  void Greater::accept(Visitor& v)   { v.visit(*this); }
+  void Leq::accept(Visitor& v)       { v.visit(*this); }
+  void Geq::accept(Visitor& v)       { v.visit(*this); }
+  void And::accept(Visitor& v)       { v.visit(*this); }
+  void Or::accept(Visitor& v)        { v.visit(*this); }
+  void Not::accept(Visitor& v)       { v.visit(*this); }
+  void NotNot::accept(Visitor& v)    { v.visit(*this); }
+  void Add::accept(Visitor& v)       { v.visit(*this); }
+  void Sub::accept(Visitor& v)       { v.visit(*this); }
+  void Mul::accept(Visitor& v)       { v.visit(*this); }
+  void Div::accept(Visitor& v)       { v.visit(*this); }
+  void Mod::accept(Visitor& v)       { v.visit(*this); }
+  void Min::accept(Visitor& v)       { v.visit(*this); }
+  void Max::accept(Visitor& v)       { v.visit(*this); }
+  void Map::accept(Visitor& v)       { v.visit(*this); }
+  void Reduce::accept(Visitor& v)    { v.visit(*this); }
+  void Filter::accept(Visitor& v)    { v.visit(*this); }
+  void All::accept(Visitor& v)       { v.visit(*this); }
+  void None::accept(Visitor& v)      { v.visit(*this); }
+  void Some::accept(Visitor& v)      { v.visit(*this); }
+  void Array::accept(Visitor& v)     { v.visit(*this); }
+  void Merge::accept(Visitor& v)     { v.visit(*this); }
+  void Cat::accept(Visitor& v)       { v.visit(*this); }
+  void Substr::accept(Visitor& v)    { v.visit(*this); }
+  void In::accept(Visitor& v)        { v.visit(*this); }
+  void Var::accept(Visitor& v)       { v.visit(*this); }
+  void Log::accept(Visitor& v)       { v.visit(*this); }
+  void If::accept(Visitor& v)        { v.visit(*this); }
+
+  void NullVal::accept(Visitor& v)   { v.visit(*this); }
+  void BoolVal::accept(Visitor& v)   { v.visit(*this); }
+  void IntVal::accept(Visitor& v)    { v.visit(*this); }
+  void UintVal::accept(Visitor& v)   { v.visit(*this); }
+  void DoubleVal::accept(Visitor& v) { v.visit(*this); }
+  void StringVal::accept(Visitor& v) { v.visit(*this); }
+
+  void Error::accept(Visitor& v)     { v.visit(*this); }
+
+  // num_evaluated_operands implementations
+  int Operator::num_evaluated_operands() const
+  {
+    return size();
+  }
+
+  template <int MaxArity>
+  int OperatorN<MaxArity>::num_evaluated_operands() const
+  {
+    return std::min(MaxArity, Operator::num_evaluated_operands());
+  }
 
   struct FwdVisitor : Visitor
   {
-    void visit(JsonExpr& n, const Expr&)         override {} // error
-    void visit(JsonExpr& n, const Eq&)           override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const StrictEq&)     override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Neq&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const StrictNeq&)    override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Less&)         override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Greater&)      override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Leq&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Geq&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const And&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Or&)           override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Not&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const NotNot&)       override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Add&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Sub&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Mul&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Div&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Mod&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Min&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Max&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Map&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Reduce&)       override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Filter&)       override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const All&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const None&)         override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Some&)         override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Merge&)        override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Cat&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Substr&)       override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const In&)           override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Var&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Log&)          override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const Error&)        override { visit(n, Expr{}); }
+    void visit(Expr&)        override {} // error
+    void visit(Operator& n)  override { visit(as<Operator>(n)); }
+    void visit(Eq& n)        override { visit(as<Operator>(n)); }
+    void visit(StrictEq& n)  override { visit(as<Operator>(n)); }
+    void visit(Neq& n)       override { visit(as<Operator>(n)); }
+    void visit(StrictNeq& n) override { visit(as<Operator>(n)); }
+    void visit(Less& n)      override { visit(as<Operator>(n)); }
+    void visit(Greater& n)   override { visit(as<Operator>(n)); }
+    void visit(Leq& n)       override { visit(as<Operator>(n)); }
+    void visit(Geq& n)       override { visit(as<Operator>(n)); }
+    void visit(And& n)       override { visit(as<Operator>(n)); }
+    void visit(Or& n)        override { visit(as<Operator>(n)); }
+    void visit(Not& n)       override { visit(as<Operator>(n)); }
+    void visit(NotNot& n)    override { visit(as<Operator>(n)); }
+    void visit(Add& n)       override { visit(as<Operator>(n)); }
+    void visit(Sub& n)       override { visit(as<Operator>(n)); }
+    void visit(Mul& n)       override { visit(as<Operator>(n)); }
+    void visit(Div& n)       override { visit(as<Operator>(n)); }
+    void visit(Mod& n)       override { visit(as<Operator>(n)); }
+    void visit(Min& n)       override { visit(as<Operator>(n)); }
+    void visit(Max& n)       override { visit(as<Operator>(n)); }
+    void visit(Map& n)       override { visit(as<Operator>(n)); }
+    void visit(Reduce& n)    override { visit(as<Operator>(n)); }
+    void visit(Filter& n)    override { visit(as<Operator>(n)); }
+    void visit(All& n)       override { visit(as<Operator>(n)); }
+    void visit(None& n)      override { visit(as<Operator>(n)); }
+    void visit(Some& n)      override { visit(as<Operator>(n)); }
+    void visit(Array& n)     override { visit(as<Operator>(n)); }
+    void visit(Merge& n)     override { visit(as<Operator>(n)); }
+    void visit(Cat& n)       override { visit(as<Operator>(n)); }
+    void visit(Substr& n)    override { visit(as<Operator>(n)); }
+    void visit(In& n)        override { visit(as<Operator>(n)); }
+    void visit(Var& n)       override { visit(as<Operator>(n)); }
+    void visit(Log& n)       override { visit(as<Operator>(n)); }
 
-    void visit(JsonExpr& n, std::int64_t)        override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, std::uint64_t)       override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, double)              override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const json::array&)  override { visit(n, Expr{}); }
-    void visit(JsonExpr& n, const json::string&) override { visit(n, Expr{}); }
+    void visit(If& n)        override { visit(as<Expr>(n)); }
+
+    void visit(NullVal& n)   override { visit(as<Expr>(n)); }
+    void visit(BoolVal& n)   override { visit(as<Expr>(n)); }
+    void visit(IntVal& n)    override { visit(as<Expr>(n)); }
+    void visit(UintVal& n)   override { visit(as<Expr>(n)); }
+    void visit(DoubleVal& n) override { visit(as<Expr>(n)); }
+    void visit(StringVal& n) override { visit(as<Expr>(n)); }
+
+    void visit(Error& n)     override { visit(as<Expr>(n)); }
   };
 
   /// AST traversal function that calls v's visit methods in post-fix order
-  /// (note, types are not visited)
-  void traverseInSAttributeOrder(JsonExpr&, Visitor&);
+  void traverseInSAttributeOrder(Expr& e, Visitor& vis);
 
   /// traverses the children of a node; does not traverse grandchildren
-  void traverseChildren(JsonExpr&, Visitor&);
+  void traverseChildren(Visitor& v, const Operator& node);
+  void traverseAllChildren(Visitor& v, const Operator& node);
+  void traverseChildrenReverse(Visitor& v, const Operator& node);
 
   namespace
   {
-    template <class JsonExprT>
-    void visit(json::Value& n, Visitor& v)
+    CXX_NORETURN
+    void unsupported()
     {
-      v.visit(n, JsonExprT{});
+      throw std::logic_error("not yet implemented");
     }
 
-    template <class JsonExprT, class Val>
-    void visit(json::Value& n, Visitor& v, const Val& val)
+    CXX_NORETURN
+    void typeError()
     {
-      v.visit(n, val);
+      throw std::runtime_error("typing error");
     }
 
-    void dispatch(json::Value& n, Visitor& v)
+    struct VarMap
     {
-      using DispatchTable = std::map<std::string, void(*)(JsonExpr&, Visitor&)>;
-      using Iterator      = json::Object::iterator;
+        void insert(Var& el);
+        std::vector<json::string> toVector() const;
+        bool hasComputedVariables() const { return hasComputed; }
 
-      static constexpr DispatchTable dt = { { "==",     visit<Eq> },
-                                            { "===",    visit<StrictEq> },
-                                            { "!=",     visit<Neq> },
-                                            { "!==",    visit<StrictNeq> },
-                                            { "if",     visit<If> },
-                                            { "!",      visit<Not> },
-                                            { "!!",     visit<NotNot> },
-                                            { "or",     visit<Or> },
-                                            { "and",    visit<And> },
-                                            { ">",      visit<Greater> },
-                                            { ">=",     visit<Geq> },
-                                            { "<",      visit<Less> },
-                                            { "<=",     visit<Leq> },
-                                            { "max",    visit<Max> },
-                                            { "min",    visit<Min> },
-                                            { "+",      visit<Add> },
-                                            { "-",      visit<Sub> },
-                                            { "*",      visit<Mul> },
-                                            { "/",      visit<Div> },
-                                            { "%",      visit<Mod> },
-                                            { "map",    visit<Map> },
-                                            { "reduce", visit<Reduce> },
-                                            { "filter", visit<Filter> },
-                                            { "all",    visit<All> },
-                                            { "none",   visit<None> },
-                                            { "some",   visit<Some> },
-                                            { "merge",  visit<Merge> },
-                                            { "in",     visit<In> },
-                                            { "cat",    visit<Cat> },
-                                            { "log",    visit<Log> },
-                                            { "var",    visit<Var> }
-                                          };
+      private:
+        using container_type = std::map<json::string, int>;
+
+        container_type mapping     = {};
+        bool           hasComputed = false;
+    };
+
+    void VarMap::insert(Var& var)
+    {
+      AnyExpr&   arg = var.back();
+      StringVal* str = dynamic_cast<StringVal*>(arg.get());
+
+      if (str == nullptr)
+      {
+        CXX_UNLIKELY;
+        hasComputed = true;
+        return;
+      }
+
+      // do nothing for free variables in "lambdas"
+      if (str->value() == "")
+        return;
+
+      auto [pos, success] = mapping.emplace(str->value(), mapping.size());
+
+      var.num(pos->second);
+    }
+
+    std::vector<json::string>
+    VarMap::toVector() const
+    {
+      std::vector<json::string> res;
+
+      res.resize(mapping.size());
+
+      for (const container_type::value_type& el : mapping)
+        res.at(el.second) = el.first;
+
+      return res;
+    }
 
 
-      if (json::Object* obj = n.is_object())
-      {
-        Iterator           aa  = obj.begin();
+    /// translates all children
+    /// \{
+    Operator::container_type
+    translateChildren(json::array& children, VarMap&);
 
-        assert(aa == o.end());
+    Operator::container_type
+    translateChildren(JsonExpr& n, VarMap&);
+    /// \}
 
-        const std::string& op = aa->first();
 
-        if (DispatchTable::const_iterator pos = dt.find(op))
-        {
-          pos->second(n, v);
-        }
-        else
-        {
-          visit<Error>(n, v);
-        }
-      }
-      else if (std::int64_t* val = n.is_int64())
+    template <class ExprT>
+    Expr& mkOperator(json::object& n, VarMap& m)
+    {
+      assert(n.size() == 1);
+
+      ExprT& res = deref(new ExprT);
+
+      res.set_operands(translateChildren(n.begin()->value(), m));
+      return res;
+    }
+
+    Array& mkArrayOperator(json::array& children, VarMap& m)
+    {
+      Array& res = deref(new Array);
+
+      res.set_operands(translateChildren(children, m));
+      return res;
+    }
+
+    template <class ValueT>
+    ValueT& mkValue(typename ValueT::value_type n)
+    {
+      return deref(new ValueT(std::move(n)));
+    }
+
+    NullVal& mkNullValue()
+    {
+      return deref(new NullVal);
+    }
+
+    using DispatchTable = std::map<json::string, Expr&(*)(json::object&, VarMap&)>;
+
+    DispatchTable::const_iterator
+    lookup(const DispatchTable& m, const json::object& op)
+    {
+      if (op.size() != 1) return m.end();
+
+      return m.find(op.begin()->key());
+    }
+
+
+    AnyExpr
+    translateNode_internal(JsonExpr& n, VarMap& varmap)
+    {
+      static const DispatchTable dt = { { "==",     &mkOperator<Eq> },
+                                        { "===",    &mkOperator<StrictEq> },
+                                        { "!=",     &mkOperator<Neq> },
+                                        { "!==",    &mkOperator<StrictNeq> },
+                                        { "if",     &mkOperator<If> },
+                                        { "!",      &mkOperator<Not> },
+                                        { "!!",     &mkOperator<NotNot> },
+                                        { "or",     &mkOperator<Or> },
+                                        { "and",    &mkOperator<And> },
+                                        { ">",      &mkOperator<Greater> },
+                                        { ">=",     &mkOperator<Geq> },
+                                        { "<",      &mkOperator<Less> },
+                                        { "<=",     &mkOperator<Leq> },
+                                        { "max",    &mkOperator<Max> },
+                                        { "min",    &mkOperator<Min> },
+                                        { "+",      &mkOperator<Add> },
+                                        { "-",      &mkOperator<Sub> },
+                                        { "*",      &mkOperator<Mul> },
+                                        { "/",      &mkOperator<Div> },
+                                        { "%",      &mkOperator<Mod> },
+                                        { "map",    &mkOperator<Map> },
+                                        { "reduce", &mkOperator<Reduce> },
+                                        { "filter", &mkOperator<Filter> },
+                                        { "all",    &mkOperator<All> },
+                                        { "none",   &mkOperator<None> },
+                                        { "some",   &mkOperator<Some> },
+                                        { "merge",  &mkOperator<Merge> },
+                                        { "in",     &mkOperator<In> },
+                                        { "cat",    &mkOperator<Cat> },
+                                        { "log",    &mkOperator<Log> },
+                                        { "var",    &mkOperator<Var> }
+                                      };
+
+      Expr* res = nullptr;
+
+      switch (n.kind())
       {
-        val.visit(n, *val);
+        case json::kind::object:
+          {
+            json::object&                 obj = n.get_object();
+            DispatchTable::const_iterator pos = lookup(dt, obj);
+
+            if (pos != dt.end())
+            {
+              CXX_LIKELY;
+              res = &pos->second(obj, varmap);
+
+              if (pos->second == mkOperator<Var>)
+                varmap.insert(dynamic_cast<Var&>(*res));
+            }
+            else
+            {
+              // does json_logic support value objects?
+              unsupported();
+            }
+
+            break;
+          }
+
+        case json::kind::array:
+          {
+            // array is an operator that combines its subexpressions into an array
+            res = &mkArrayOperator(n.get_array(), varmap);
+            break;
+          }
+
+        case json::kind::string:
+          {
+            res = &mkValue<StringVal>(std::move(n.get_string()));
+            break;
+          }
+
+        case json::kind::int64:
+          {
+            res = &mkValue<IntVal>(n.get_int64());
+            break;
+          }
+
+        case json::kind::uint64:
+          {
+            res = &mkValue<UintVal>(n.get_uint64());
+            break;
+          }
+
+        case json::kind::double_:
+          {
+            res = &mkValue<DoubleVal>(n.get_double());
+            break;
+          }
+
+        case json::kind::bool_:
+          {
+            res = &mkValue<BoolVal>(n.get_bool());
+            break;
+          }
+
+        case json::kind::null:
+          {
+            res = &mkNullValue();
+            break;
+          }
+
+        default:
+          unsupported();
       }
-      else if (std::uint64_t* val = n.is_uint64())
+
+      return std::unique_ptr<Expr>(res);
+    }
+
+
+    std::tuple<AnyExpr, std::vector<json::string>, bool>
+    translateNode(JsonExpr& n)
+    {
+      VarMap  varmap;
+      AnyExpr node = translateNode_internal(n, varmap);
+      bool    hasComputedVariables = varmap.hasComputedVariables();
+
+      return std::make_tuple(std::move(node), varmap.toVector(), hasComputedVariables);
+    }
+
+    Operator::container_type
+    translateChildren(json::array& children, VarMap& varmap)
+    {
+      Operator::container_type res;
+
+      res.reserve(children.size());
+
+      for (JsonExpr& elem : children)
+        res.emplace_back(translateNode_internal(elem, varmap));
+
+      return res;
+    }
+
+    Operator::container_type
+    translateChildren(JsonExpr& n, VarMap& varmap)
+    {
+      if (json::array* arr = n.if_array())
       {
-        val.visit(n, *val);
+        CXX_LIKELY;
+        return translateChildren(*arr, varmap);
       }
-      else if (double* val = n.is_double())
-      {
-        visit(n, v, *val);
-      }
-      else if (json::array* arr = n.is_array())
-      {
-        visit(n, v, *arr);
-      }
-      else if (json::string* str = n.is_string())
-      {
-        visit(n, v, *str);
-      }
-      else
-      {
-        visit<Error>(n, v);
-      }
+
+      Operator::container_type res;
+
+      res.emplace_back(translateNode_internal(n, varmap));
+      return res;
     }
   }
 
-  void traverseChildren(JsonExpr& n, Visitor& n)
+  // only operators have children
+  void _traverseChildren(Visitor& v, Operator::const_iterator aa, Operator::const_iterator zz)
   {
-    using Iterator = json::Object::iterator;
-
-    json::Object& o  = n.as_object();
-    Iterator      aa = o.begin();
-    Iterator      zz = o.end();
-
-    assert(aa == zz);
-    json::Object& operands = aa->second;
-    json::Array&  children = operands.as_array();
-
-    for (json::Value& elem : children)
-      dispatch(elem, v);
+    std::for_each( aa, zz,
+                   [&v](const AnyExpr& e) -> void
+                   {
+                     e->accept(v);
+                   }
+                 );
   }
 
-  int operandCount(JsonExpr& n)
+  void traverseChildren(Visitor& v, const Operator& node)
   {
-    using Iterator = json::Object::iterator;
+    Operator::const_iterator aa = node.begin();
 
-    json::Object& o  = n.as_object();
-    Iterator      aa = o.begin();
-    Iterator      zz = o.end();
-
-    assert(aa == zz);
-    json::Object& operands = aa->second;
-    json::Array&  children = operands.as_array();
-
-    return children.size();
+    _traverseChildren(v, aa, aa + node.num_evaluated_operands());
   }
+
+  void traverseAllChildren(Visitor& v, const Operator& node)
+  {
+    _traverseChildren(v, node.begin(), node.end());
+  }
+
+  void traverseChildrenReverse(Visitor& v, const Operator& node)
+  {
+    Operator::const_reverse_iterator zz = node.crend();
+    Operator::const_reverse_iterator aa = zz - node.num_evaluated_operands();
+
+    std::for_each( aa, zz,
+                   [&v](const AnyExpr& e) -> void
+                   {
+                     e->accept(v);
+                   }
+                 );
+  }
+
 
   namespace
   {
@@ -300,381 +838,1583 @@ namespace json_logic
         : sub(client)
         {}
 
-        void visit(JsonExpr& n, const Eq&)           override;
-        void visit(JsonExpr& n, const StrictEq&)     override;
-        void visit(JsonExpr& n, const Neq&)          override;
-        void visit(JsonExpr& n, const StrictNeq&)    override;
-        void visit(JsonExpr& n, const Less&)         override;
-        void visit(JsonExpr& n, const Greater&)      override;
-        void visit(JsonExpr& n, const Leq&)          override;
-        void visit(JsonExpr& n, const Geq&)          override;
-        void visit(JsonExpr& n, const And&)          override;
-        void visit(JsonExpr& n, const Or&)           override;
-        void visit(JsonExpr& n, const Not&)          override;
-        void visit(JsonExpr& n, const NotNot&)       override;
-        void visit(JsonExpr& n, const Add&)          override;
-        void visit(JsonExpr& n, const Sub&)          override;
-        void visit(JsonExpr& n, const Mul&)          override;
-        void visit(JsonExpr& n, const Div&)          override;
-        void visit(JsonExpr& n, const Mod&)          override;
-        void visit(JsonExpr& n, const Min&)          override;
-        void visit(JsonExpr& n, const Max&)          override;
-        void visit(JsonExpr& n, const Map&)          override;
-        void visit(JsonExpr& n, const Reduce&)       override;
-        void visit(JsonExpr& n, const Filter&)       override;
-        void visit(JsonExpr& n, const All&)          override;
-        void visit(JsonExpr& n, const None&)         override;
-        void visit(JsonExpr& n, const Some&)         override;
-        void visit(JsonExpr& n, const Merge&)        override;
-        void visit(JsonExpr& n, const Cat&)          override;
-        void visit(JsonExpr& n, const Substr&)       override;
-        void visit(JsonExpr& n, const In&)           override;
-        void visit(JsonExpr& n, const Var&)          override;
-        void visit(JsonExpr& n, const Log&)          override;
-        void visit(JsonExpr& n, const Error&)        override;
-                                                             ;
-        void visit(JsonExpr& n, std::int64_t)        override;
-        void visit(JsonExpr& n, std::uint64_t)       override;
-        void visit(JsonExpr& n, double)              override;
-        void visit(JsonExpr& n, const json::array&)  override;
-        void visit(JsonExpr& n, const json::string&) override;
+        void visit(Expr&)        final;
+        void visit(Operator&)    final;
+        void visit(Eq&)          final;
+        void visit(StrictEq&)    final;
+        void visit(Neq&)         final;
+        void visit(StrictNeq&)   final;
+        void visit(Less&)        final;
+        void visit(Greater&)     final;
+        void visit(Leq&)         final;
+        void visit(Geq&)         final;
+        void visit(And&)         final;
+        void visit(Or&)          final;
+        void visit(Not&)         final;
+        void visit(NotNot&)      final;
+        void visit(Add&)         final;
+        void visit(Sub&)         final;
+        void visit(Mul&)         final;
+        void visit(Div&)         final;
+        void visit(Mod&)         final;
+        void visit(Min&)         final;
+        void visit(Max&)         final;
+        void visit(Map&)         final;
+        void visit(Reduce&)      final;
+        void visit(Filter&)      final;
+        void visit(All&)         final;
+        void visit(None&)        final;
+        void visit(Some&)        final;
+        void visit(Merge&)       final;
+        void visit(Cat&)         final;
+        void visit(Substr&)      final;
+        void visit(In&)          final;
+        void visit(Array& n)     final;
+        void visit(Var&)         final;
+        void visit(Log&)         final;
+
+        void visit(If&)          final;
+
+        void visit(NullVal& n)   final;
+        void visit(BoolVal& n)   final;
+        void visit(IntVal& n)    final;
+        void visit(UintVal& n)   final;
+        void visit(DoubleVal& n) final;
+        void visit(StringVal& n) final;
+
+        void visit(Error& n)     final;
 
       private:
         Visitor& sub;
 
-        template <class JsonExprT>
+        template <class OperatorNode>
         inline
-        void _visit(JsonExpr& n, const JsonExprT& tag)
+        void _visit(OperatorNode& n)
         {
-          traverseChildren(n, *this);
-          sub.visit(n, tag);
+          traverseChildren(*this, n);
+          sub.visit(n);
         }
 
-        template <class ValueT>
+        template <class ValueNode>
         inline
-        void _value(JsonExpr& n, const ValueT& val)
+        void _value(ValueNode& n)
         {
-          sub.visit(n, val);
+          sub.visit(n);
         }
     };
 
-    void SAttributeTraversal::visit(JsonExpr& n, const Eq& tag)         { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const StrictEq& tag)   { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Neq& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const StrictNeq& tag)  { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Less& tag)       { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Greater& tag)    { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Leq& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Geq& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const And& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Or& tag)         { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Not& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const NotNot& tag)     { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Add& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Sub& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Mul& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Div& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Mod& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Min& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Max& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Map& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Reduce& tag)     { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Filter& tag)     { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const All& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const None& tag)       { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Some& tag)       { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Merge& tag)      { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Cat& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Substr& tag)     { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const In& tag)         { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Var& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Log& tag)        { _visit(n, tag); }
-    void SAttributeTraversal::visit(JsonExpr& n, const Error& tag)      { _visit(n, tag); }
+    void SAttributeTraversal::visit(Expr&)           { typeError();    }
+    void SAttributeTraversal::visit(Operator&)       { typeError();    }
+    void SAttributeTraversal::visit(Eq& n)           { _visit(n); }
+    void SAttributeTraversal::visit(StrictEq& n)     { _visit(n); }
+    void SAttributeTraversal::visit(Neq& n)          { _visit(n); }
+    void SAttributeTraversal::visit(StrictNeq& n)    { _visit(n); }
+    void SAttributeTraversal::visit(Less& n)         { _visit(n); }
+    void SAttributeTraversal::visit(Greater& n)      { _visit(n); }
+    void SAttributeTraversal::visit(Leq& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Geq& n)          { _visit(n); }
+    void SAttributeTraversal::visit(And& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Or& n)           { _visit(n); }
+    void SAttributeTraversal::visit(Not& n)          { _visit(n); }
+    void SAttributeTraversal::visit(NotNot& n)       { _visit(n); }
+    void SAttributeTraversal::visit(Add& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Sub& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Mul& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Div& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Mod& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Min& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Max& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Array& n)        { _visit(n); }
+    void SAttributeTraversal::visit(Map& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Reduce& n)       { _visit(n); }
+    void SAttributeTraversal::visit(Filter& n)       { _visit(n); }
+    void SAttributeTraversal::visit(All& n)          { _visit(n); }
+    void SAttributeTraversal::visit(None& n)         { _visit(n); }
+    void SAttributeTraversal::visit(Some& n)         { _visit(n); }
+    void SAttributeTraversal::visit(Merge& n)        { _visit(n); }
+    void SAttributeTraversal::visit(Cat& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Substr& n)       { _visit(n); }
+    void SAttributeTraversal::visit(In& n)           { _visit(n); }
+    void SAttributeTraversal::visit(Var& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Log& n)          { _visit(n); }
 
-    void SAttributeTraversal::visit(JsonExpr& n, std::int64_t v)        { _value(n, v); }
-    void SAttributeTraversal::visit(JsonExpr& n, std::uint64_t v)       { _value(n, v); }
-    void SAttributeTraversal::visit(JsonExpr& n, double v)              { _value(n, v); }
-    void SAttributeTraversal::visit(JsonExpr& n, const json::array& v)  { _value(n, v); }
-    void SAttributeTraversal::visit(JsonExpr& n, const json::string& v) { _value(n, v); }
+    void SAttributeTraversal::visit(If& n)           { _visit(n); }
+
+    void SAttributeTraversal::visit(NullVal& n)      { _value(n); }
+    void SAttributeTraversal::visit(BoolVal& n)      { _value(n); }
+    void SAttributeTraversal::visit(IntVal& n)       { _value(n); }
+    void SAttributeTraversal::visit(UintVal& n)      { _value(n); }
+    void SAttributeTraversal::visit(DoubleVal& n)    { _value(n); }
+    void SAttributeTraversal::visit(StringVal& n)    { _value(n); }
+
+    void SAttributeTraversal::visit(Error& n)        { sub.visit(n); }
   }
+
+  using ValueExpr = std::unique_ptr<Expr>; // could be value if we have a type for that
+
+  std::ostream& operator<<(std::ostream& os, ValueExpr& n);
+
+  ValueExpr toValueExpr(std::nullptr_t)    { return ValueExpr(new NullVal); }
+  ValueExpr toValueExpr(bool val)          { return ValueExpr(new BoolVal(val)); }
+  ValueExpr toValueExpr(std::int64_t val)  { return ValueExpr(new IntVal(val)); }
+  ValueExpr toValueExpr(std::uint64_t val) { return ValueExpr(new UintVal(val)); }
+  ValueExpr toValueExpr(double val)        { return ValueExpr(new DoubleVal(val)); }
+  ValueExpr toValueExpr(json::string val)  { return ValueExpr(new StringVal(std::move(val))); }
+
+  struct EvalStack : private std::vector<ValueExpr>
+  {
+    using base = std::vector<ValueExpr>;
+
+    EvalStack()
+    : base()
+    {}
+
+    using base::iterator;
+    using base::begin;
+    using base::end;
+    using base::back;
+    using base::size;
+    using base::reserve;
+
+    iterator arg(int num = 0)
+    {
+      assert(base::size() >= size_t(num));
+
+      return end() - num;
+    }
+
+    void pop_tail(iterator pos)
+    {
+      if (DEBUG_EVALSTACK)
+        std::cerr << "- " << std::distance(pos, end()) << std::endl;
+
+      base::erase(pos, end());
+    }
+
+    void pop(int i = 1)
+    {
+      pop_tail(arg(i));
+    }
+
+    void push(ValueExpr&& elem)
+    {
+      base::emplace_back(std::move(elem));
+
+      if (DEBUG_EVALSTACK)
+        std::cerr << "+ " << base::back() << " @" << base::size() << std::endl;
+    }
+
+    void push(Expr* elem)
+    {
+      base::emplace_back(elem);
+
+      if (DEBUG_EVALSTACK)
+        std::cerr << "+ " << base::back() << " @" << base::size() << std::endl;
+    }
+  };
+
+  //
+  // coercion functions
+
+  std::int64_t toInt(const json::string& str)
+  {
+    return std::stoi(std::string{str.c_str()});
+  }
+
+  std::int64_t toInt(double d)
+  {
+    return d;
+  }
+
+  std::int64_t toInt(bool b)
+  {
+    return b;
+  }
+
+  std::uint64_t toUint(const json::string& str)
+  {
+    return std::stoull(std::string{str.c_str()});
+  }
+
+  std::uint64_t toUint(double d)
+  {
+    return d;
+  }
+
+  std::uint64_t toUint(bool b)
+  {
+    return b;
+  }
+
+  double toDouble(const json::string& str)
+  {
+    return std::stod(std::string{str.c_str()});
+  }
+
+  template <class Val>
+  json::string toString(Val v)
+  {
+    return json::string{std::to_string(v)};
+  }
+
+  json::string toString(bool b)
+  {
+    return json::string{b ? "true" : "false"};
+  }
+
+  json::string toString(std::nullptr_t)
+  {
+    return json::string{"null"};
+  }
+
+  /// conversion to boolean
+  /// \{
+
+  bool toBool(std::int64_t v)        { return v; }
+  bool toBool(std::uint64_t v)       { return v; }
+  bool toBool(double v)              { return v; }
+  bool toBool(const json::string& v) { return v.size() != 0; }
+  bool toBool(Array& v)              { return v.num_evaluated_operands(); }
+
+  bool toBool(Expr& e)
+  {
+    struct BoolConverter : FwdVisitor
+    {
+      void visit(Expr&)        final { typeError(); }
+
+      void visit(NullVal&)     final { res = false; }
+      void visit(BoolVal& n)   final { res = n.value(); }
+      void visit(IntVal& n)    final { res = toBool(n.value()); }
+      void visit(UintVal& n)   final { res = toBool(n.value()); }
+      void visit(DoubleVal& n) final { res = toBool(n.value()); }
+      void visit(StringVal& n) final { res = toBool(n.value()); }
+      void visit(Array& n)     final { res = toBool(n); }
+
+      bool res;
+    };
+
+    BoolConverter conv;
+
+    e.accept(conv);
+    return conv.res;
+  }
+
+  bool toBool(ValueExpr& el)
+  {
+    return toBool(*el);
+  }
+
+  /// \}
+
+
+  struct LogicalOperatorBase
+  {
+    enum
+    {
+      definedForString  = true,
+      definedForDouble  = true,
+      definedForInteger = true,
+      definedForBool    = false,
+      definedForNull    = false
+    };
+
+    using result_type   = bool;
+  };
+
+  /// \brief a strict binary operator operates on operands of the same
+  ///        type. The operation on two different types returns false.
+  ///        NO type coercion is performed.
+  struct StrictLogicalBinaryOperator : LogicalOperatorBase
+  {
+    template <class LhsT, class RhsT>
+    std::tuple<LhsT*, RhsT*>
+    coerce(LhsT* lv, RhsT* rv, EvalStack&)
+    {
+      return std::make_tuple(lv, rv);
+    }
+  };
+
+  struct NumericBinaryOperatorBase
+  {
+    std::tuple<double*, double*>
+    coerce(double* lv, double* rv, EvalStack&)
+    {
+      return std::make_tuple(lv, rv);
+    }
+
+    std::tuple<double*, double*>
+    coerce(double* lv, std::int64_t* rv, EvalStack& stack)
+    {
+      DoubleVal* tmp = new DoubleVal(*rv);
+
+      stack.push(tmp);
+      return std::make_tuple(lv, &tmp->value());
+    }
+
+    std::tuple<double*, double*>
+    coerce(double* lv, std::uint64_t* rv, EvalStack& stack)
+    {
+      DoubleVal* tmp = new DoubleVal(*rv);
+
+      stack.push(tmp);
+      return std::make_tuple(lv, &tmp->value());
+    }
+
+    std::tuple<double*, double*>
+    coerce(std::int64_t* lv, double* rv, EvalStack& stack)
+    {
+      DoubleVal* tmp = new DoubleVal(*lv);
+
+      stack.push(tmp);
+      return std::make_tuple(&tmp->value(), rv);
+    }
+
+    std::tuple<std::int64_t*, std::int64_t*>
+    coerce(std::int64_t* lv, std::int64_t* rv, EvalStack&)
+    {
+      return std::make_tuple(lv, rv);
+    }
+
+    std::tuple<std::int64_t*, std::int64_t*>
+    coerce(std::int64_t* lv, std::uint64_t* rv, EvalStack& stack)
+    {
+      IntVal* tmp = new IntVal(*rv);
+
+      stack.push(tmp);
+      return std::make_tuple(lv, &tmp->value());
+    }
+
+    std::tuple<double*, double*>
+    coerce(std::uint64_t* lv, double* rv, EvalStack& stack)
+    {
+      DoubleVal* tmp = new DoubleVal(*lv);
+
+      stack.push(tmp);
+      return std::make_tuple(&tmp->value(), rv);
+    }
+
+    std::tuple<std::int64_t*, std::int64_t*>
+    coerce(std::uint64_t* lv, std::int64_t* rv, EvalStack& stack)
+    {
+      IntVal* tmp = new IntVal(*lv);
+
+      stack.push(tmp);
+      return std::make_tuple(&tmp->value(), rv);
+    }
+
+    std::tuple<std::uint64_t*, std::uint64_t*>
+    coerce(std::uint64_t* lv, std::uint64_t* rv, EvalStack&)
+    {
+      return std::make_tuple(lv, rv);
+    }
+  };
+
+
+  /// \brief a logical binary operator compares two values. If the
+  ///        values have a different type, type coercion is performed
+  ///        on one of the operands.
+  struct LogicalBinaryOperator : NumericBinaryOperatorBase, LogicalOperatorBase
+  {
+    using NumericBinaryOperatorBase::coerce;
+
+    std::tuple<double*, double*>
+    coerce(double* lv, json::string* rv, EvalStack& stack)
+    {
+      DoubleVal* tmp = new DoubleVal(toDouble(*rv));
+
+      stack.push(tmp);
+      return std::make_tuple(lv, &tmp->value());
+    }
+
+    std::tuple<std::int64_t*, std::int64_t*>
+    coerce(std::int64_t* lv, json::string* rv, EvalStack& stack)
+    {
+      IntVal* tmp = new IntVal(toInt(*rv));
+
+      stack.push(tmp);
+      return std::make_tuple(lv, &tmp->value());
+    }
+
+    std::tuple<std::uint64_t*, std::uint64_t*>
+    coerce(std::uint64_t* lv, json::string* rv, EvalStack& stack)
+    {
+      UintVal* tmp = new UintVal(toInt(*rv));
+
+      stack.push(tmp);
+      return std::make_tuple(lv, &tmp->value());
+    }
+
+    std::tuple<double*, double*>
+    coerce(json::string* lv, double* rv, EvalStack& stack)
+    {
+      DoubleVal* tmp = new DoubleVal(toDouble(*lv));
+
+      stack.push(tmp);
+      return std::make_tuple(&tmp->value(), rv);
+    }
+
+    std::tuple<std::int64_t*, std::int64_t*>
+    coerce(json::string* lv, std::int64_t* rv, EvalStack& stack)
+    {
+      IntVal* tmp = new IntVal(toInt(*lv));
+
+      stack.push(tmp);
+      return std::make_tuple(&tmp->value(), rv);
+    }
+
+    std::tuple<std::uint64_t*, std::uint64_t*>
+    coerce(json::string* lv, std::uint64_t* rv, EvalStack& stack)
+    {
+      UintVal* tmp = new UintVal(toInt(*lv));
+
+      stack.push(tmp);
+      return std::make_tuple(&tmp->value(), rv);
+    }
+
+    std::tuple<json::string*, json::string*>
+    coerce(json::string* lv, json::string* rv, EvalStack&)
+    {
+      return std::make_tuple(lv, rv);
+    }
+  };
+  // @}
+
+  // Arith
+  struct ArithmeticOperator : NumericBinaryOperatorBase
+  {
+    enum
+    {
+      definedForString  = false,
+      definedForDouble  = true,
+      definedForInteger = true,
+      definedForBool    = false,
+      definedForNull    = true
+    };
+
+    using result_type = ValueExpr;
+
+    using NumericBinaryOperatorBase::coerce;
+
+    std::tuple<std::nullptr_t, std::nullptr_t>
+    coerce(double*, std::nullptr_t, EvalStack&)
+    {
+      return std::make_tuple(nullptr, nullptr);
+    }
+
+    std::tuple<std::nullptr_t, std::nullptr_t>
+    coerce(std::int64_t*, std::nullptr_t, EvalStack&)
+    {
+      return std::make_tuple(nullptr, nullptr);
+    }
+
+    std::tuple<std::nullptr_t, std::nullptr_t>
+    coerce(std::uint64_t*, std::nullptr_t, EvalStack&)
+    {
+      return std::make_tuple(nullptr, nullptr);
+    }
+
+    std::tuple<std::nullptr_t, std::nullptr_t>
+    coerce(std::nullptr_t, double*, EvalStack&)
+    {
+      return std::make_tuple(nullptr, nullptr);
+    }
+
+    std::tuple<std::nullptr_t, std::nullptr_t>
+    coerce(std::nullptr_t, std::int64_t*, EvalStack&)
+    {
+      return std::make_tuple(nullptr, nullptr);
+    }
+
+    std::tuple<std::nullptr_t, std::nullptr_t>
+    coerce(std::nullptr_t, std::uint64_t*, EvalStack&)
+    {
+      return std::make_tuple(nullptr, nullptr);
+    }
+
+    std::tuple<std::nullptr_t, std::nullptr_t>
+    coerce(std::nullptr_t, std::nullptr_t, EvalStack&)
+    {
+      return std::make_tuple(nullptr, nullptr);
+    }
+  };
+
+  struct IntegerArithmeticOperator : ArithmeticOperator
+  {
+    enum
+    {
+      definedForString  = false,
+      definedForDouble  = false,
+      definedForInteger = true,
+      definedForBool    = false,
+      definedForNull    = false
+    };
+
+    using ArithmeticOperator::coerce;
+  };
+
+  struct StringOperator
+  {
+    enum
+    {
+      definedForString  = true,
+      definedForDouble  = false,
+      definedForInteger = false,
+      definedForBool    = false,
+      definedForNull    = false
+    };
+
+    using result_type = ValueExpr;
+
+    std::tuple<json::string*, json::string*>
+    coerce(json::string* lv, json::string* rv, EvalStack&)
+    {
+      return std::make_tuple(lv, rv);
+    }
+  };
+
+
+  AnyExpr convert(AnyExpr val, ...)
+  {
+    return val;
+  }
+
+
+  AnyExpr convert(AnyExpr val, const ArithmeticOperator&)
+  {
+    struct ArithmeticConverter : FwdVisitor
+    {
+      ArithmeticConverter(AnyExpr val)
+      : res(std::move(val))
+      {}
+
+      void visit(Expr&)         final { typeError(); }
+
+      // defined for the following types
+      void visit(IntVal&)       final {}
+      void visit(UintVal&)      final {}
+      void visit(DoubleVal&)    final {}
+      void visit(NullVal&)      final {}
+
+      // need to convert values
+      void visit(StringVal& el) final
+      {
+        double  dd = toDouble(el.value());
+        int64_t ii = toInt(el.value());
+        // uint?
+
+        Expr* x = (dd != ii) ? static_cast<Expr*>(new DoubleVal(dd)) : new IntVal(ii);
+
+        res = std::unique_ptr<Expr>(x);
+      }
+
+      void visit(BoolVal&) final
+      {
+        // \todo correct?
+        res = std::unique_ptr<Expr>(&mkNullValue());
+      }
+
+      AnyExpr result() && { return std::move(res); }
+
+      AnyExpr res;
+    };
+
+    Expr*               node = val.get();
+    ArithmeticConverter conv{std::move(val)};
+
+    node->accept(conv);
+    return std::move(conv).result();
+  }
+
+  AnyExpr convert(AnyExpr val, const IntegerArithmeticOperator&)
+  {
+    struct IntegerArithmeticConverter : FwdVisitor
+    {
+      IntegerArithmeticConverter(AnyExpr val)
+      : res(std::move(val))
+      {}
+
+      void visit(Expr&)         final { typeError(); }
+
+      // defined for the following types
+      void visit(IntVal&)       final {}
+      void visit(UintVal&)      final {}
+
+      // need to convert values
+      void visit(StringVal& el) final
+      {
+        res = AnyExpr(new IntVal(toInt(el.value())));
+      }
+
+      void visit(BoolVal& el) final
+      {
+        res = AnyExpr(new IntVal(toInt(el.value())));
+      }
+
+      void visit(DoubleVal& el) final
+      {
+        res = AnyExpr(new IntVal(toInt(el.value())));
+      }
+
+      void visit(NullVal&)      final
+      {
+        res = AnyExpr(new IntVal(0));
+      }
+
+      AnyExpr result() && { return std::move(res); }
+
+      AnyExpr res;
+    };
+
+    Expr*                      node = val.get();
+    IntegerArithmeticConverter conv{std::move(val)};
+
+    node->accept(conv);
+    return std::move(conv).result();
+  }
+
+  AnyExpr convert(AnyExpr val, const StringOperator&)
+  {
+    struct StringConverter : FwdVisitor
+    {
+      StringConverter(AnyExpr val)
+      : res(std::move(val))
+      {}
+
+      void visit(Expr&)         final { typeError(); }
+
+      // defined for the following types
+      void visit(StringVal&)    final {}
+
+
+      // need to convert values
+      void visit(BoolVal& el) final
+      {
+        res = AnyExpr(new StringVal(toString(el.value())));
+      }
+
+      void visit(IntVal& el)    final
+      {
+        res = AnyExpr(new StringVal(toString(el.value())));
+      }
+
+      void visit(UintVal& el)   final
+      {
+        res = AnyExpr(new StringVal(toString(el.value())));
+      }
+
+      void visit(DoubleVal& el) final
+      {
+        res = AnyExpr(new StringVal(toString(el.value())));
+      }
+
+      void visit(NullVal& el)      final
+      {
+        res = AnyExpr(new StringVal(toString(el.value())));
+      }
+
+      AnyExpr result() && { return std::move(res); }
+
+      AnyExpr res;
+    };
+
+    Expr*           node = val.get();
+    StringConverter conv{std::move(val)};
+
+    node->accept(conv);
+    return std::move(conv).result();
+  }
+
+
+  template <class LV, class RV, class BinaryOperator>
+  typename BinaryOperator::result_type
+  call_operator(LV* lhs, RV* rhs, BinaryOperator op) { return op(*lhs, *rhs); }
+
+  template <class BinaryOperator>
+  typename BinaryOperator::result_type
+  call_operator(std::nullptr_t, std::nullptr_t, BinaryOperator op) { return op(nullptr, nullptr); }
+
+
+  template <class BinaryOperator, class LhsValue>
+  struct BinaryOperatorVisitor_ : FwdVisitor
+  {
+      using result_type = typename BinaryOperator::result_type;
+
+      BinaryOperatorVisitor_(LhsValue lval, BinaryOperator oper, EvalStack& evalstack)
+      : lv(lval), op(oper), stack(evalstack)
+      {}
+
+      template <class RhsValue>
+      void calc(RhsValue rv)
+      {
+        auto [ll, rr] = op.coerce(lv, rv, stack);
+
+        res = call_operator(ll, rr, op);
+      }
+
+      void visit(Expr&) final { typeError(); }
+
+      void visit(StringVal& n) final
+      {
+        if constexpr (BinaryOperator::definedForString)
+          return calc(&n.value());
+
+        typeError();
+      }
+
+      void visit(NullVal&) final
+      {
+        if constexpr (BinaryOperator::definedForNull)
+          return calc(nullptr);
+
+        typeError();
+      }
+
+      void visit(BoolVal& n) final
+      {
+        if constexpr (BinaryOperator::definedForBool)
+          return calc(&n.value());
+
+        typeError();
+      }
+
+      void visit(IntVal& n) final
+      {
+        if constexpr (BinaryOperator::definedForInteger)
+          return calc(&n.value());
+
+        typeError();
+      }
+
+      void visit(UintVal& n) final
+      {
+        if constexpr (BinaryOperator::definedForInteger)
+          return calc(&n.value());
+
+        typeError();
+      }
+
+      void visit(DoubleVal& n) final
+      {
+        if constexpr (BinaryOperator::definedForDouble)
+          return calc(&n.value());
+
+        typeError();
+      }
+
+      void visit(Array&) final
+      {
+        typeError(); // for now
+      }
+
+      result_type result() && { return std::move(res); }
+
+    private:
+      LhsValue       lv;
+      BinaryOperator op;
+      EvalStack&     stack;
+      result_type    res;
+  };
+
+  template <class BinaryOperator>
+  struct BinaryOperatorVisitor : FwdVisitor
+  {
+      using result_type = typename BinaryOperator::result_type;
+
+      BinaryOperatorVisitor(BinaryOperator oper, EvalStack& evalstack, ValueExpr rhsarg)
+      : op(oper), stack(evalstack), rhs(std::move(rhsarg))
+      {}
+
+      template <class LhsValue>
+      void calc(LhsValue lv)
+      {
+        using RhsVisitor = BinaryOperatorVisitor_<BinaryOperator, LhsValue>;
+
+        RhsVisitor vis{lv, op, stack};
+
+        rhs->accept(vis);
+        res = std::move(vis).result();
+      }
+
+      void visit(StringVal& n) final
+      {
+        if constexpr (BinaryOperator::definedForString)
+          return calc(&n.value());
+
+        typeError();
+      }
+
+      void visit(NullVal&) final
+      {
+        if constexpr (BinaryOperator::definedForNull)
+          return calc(nullptr);
+
+        typeError();
+      }
+
+      void visit(BoolVal& n) final
+      {
+        if constexpr (BinaryOperator::definedForBool)
+          return calc(&n.value());
+
+        typeError();
+      }
+
+      void visit(IntVal& n) final
+      {
+        if constexpr (BinaryOperator::definedForInteger)
+          return calc(&n.value());
+
+        typeError();
+      }
+
+      void visit(UintVal& n) final
+      {
+        if constexpr (BinaryOperator::definedForInteger)
+          return calc(&n.value());
+
+        typeError();
+      }
+
+      void visit(DoubleVal& n) final
+      {
+        if constexpr (BinaryOperator::definedForDouble)
+          return calc(&n.value());
+
+        typeError();
+      }
+
+      void visit(Array&) final
+      {
+        typeError(); // for now
+      }
+
+      result_type result() && { return std::move(res); }
+
+    private:
+      BinaryOperator op;
+      EvalStack&     stack;
+      ValueExpr      rhs;
+      result_type    res;
+  };
+
+  template <class BinaryOperator>
+  typename BinaryOperator::result_type
+  compute(ValueExpr& lhs, ValueExpr& rhs, EvalStack& stack, BinaryOperator op)
+  {
+    using LhsVisitor = BinaryOperatorVisitor<BinaryOperator>;
+
+    LhsVisitor vis{op, stack, std::move(rhs)};
+
+    lhs->accept(vis);
+    return std::move(vis).result();
+  }
+
+
+  template <class JsonExprT>
+  struct Calc {};
+
+
+  template <>
+  struct Calc<Eq> : LogicalBinaryOperator
+  {
+    using LogicalBinaryOperator::result_type;
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return lhs == rhs;
+    }
+  };
+
+  template <>
+  struct Calc<Neq> : LogicalBinaryOperator
+  {
+    using LogicalBinaryOperator::result_type;
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return lhs != rhs;
+    }
+  };
+
+  template <>
+  struct Calc<StrictEq> : StrictLogicalBinaryOperator
+  {
+    using StrictLogicalBinaryOperator::result_type;
+
+    result_type operator()(...) const { return false; } // type mismatch
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return lhs == rhs;
+    }
+  };
+
+  template <>
+  struct Calc<StrictNeq> : StrictLogicalBinaryOperator
+  {
+    using StrictLogicalBinaryOperator::result_type;
+
+    result_type operator()(...) const { return false; } // type mismatch
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return lhs == rhs;
+    }
+  };
+
+  template <>
+  struct Calc<Less> : LogicalBinaryOperator
+  {
+    using LogicalBinaryOperator::result_type;
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return lhs < rhs;
+    }
+  };
+
+  template <>
+  struct Calc<Greater> : LogicalBinaryOperator
+  {
+    using LogicalBinaryOperator::result_type;
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return rhs < lhs;
+    }
+  };
+
+  template <>
+  struct Calc<Leq> : LogicalBinaryOperator
+  {
+    using LogicalBinaryOperator::result_type;
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return lhs <= rhs;
+    }
+  };
+
+  template <>
+  struct Calc<Geq> : LogicalBinaryOperator
+  {
+    using LogicalBinaryOperator::result_type;
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return rhs <= lhs;
+    }
+  };
+
+  template <>
+  struct Calc<Add> : ArithmeticOperator
+  {
+    using ArithmeticOperator::result_type;
+
+    result_type
+    operator()(std::nullptr_t, std::nullptr_t) const { return toValueExpr(nullptr); }
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return toValueExpr(lhs + rhs);
+    }
+  };
+
+  template <>
+  struct Calc<Sub> : ArithmeticOperator
+  {
+    using ArithmeticOperator::result_type;
+
+    result_type
+    operator()(std::nullptr_t, std::nullptr_t) const { return toValueExpr(nullptr); }
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return toValueExpr(lhs - rhs);
+    }
+  };
+
+  template <>
+  struct Calc<Mul> : ArithmeticOperator
+  {
+    using ArithmeticOperator::result_type;
+
+    result_type
+    operator()(std::nullptr_t, std::nullptr_t) const { return toValueExpr(nullptr); }
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return toValueExpr(lhs * rhs);
+    }
+  };
+
+  template <>
+  struct Calc<Div> : ArithmeticOperator
+  {
+    using ArithmeticOperator::result_type;
+
+    result_type
+    operator()(std::nullptr_t, std::nullptr_t) const { return toValueExpr(nullptr); }
+
+    result_type
+    operator()(double lhs, double rhs) const
+    {
+      double res = lhs / rhs;
+
+      // if (isInteger(res)) return toInt(res);
+      return toValueExpr(res);
+    }
+
+    template <class Int_t>
+    result_type
+    operator()(Int_t lhs, Int_t rhs) const
+    {
+      if (lhs % rhs) return (*this)(double(lhs), double(rhs));
+
+      return toValueExpr(lhs / rhs);
+    }
+  };
+
+  template <>
+  struct Calc<Mod> : IntegerArithmeticOperator
+  {
+    using IntegerArithmeticOperator::result_type;
+
+    std::nullptr_t
+    operator()(std::nullptr_t, std::nullptr_t) const { return nullptr; }
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      if (rhs == 0) return toValueExpr(nullptr);
+
+      return toValueExpr(lhs % rhs);
+    }
+  };
+
+  template <>
+  struct Calc<Min> : ArithmeticOperator
+  {
+    using ArithmeticOperator::result_type;
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return toValueExpr(std::min(lhs, rhs));
+    }
+  };
+
+  template <>
+  struct Calc<Max> : ArithmeticOperator
+  {
+    using ArithmeticOperator::result_type;
+
+    template <class T>
+    result_type
+    operator()(const T& lhs, const T& rhs) const
+    {
+      return toValueExpr(std::max(lhs, rhs));
+    }
+  };
+
+  template <>
+  struct Calc<Not>
+  {
+    using result_type = bool;
+
+    result_type
+    operator()(Expr& val) const
+    {
+      return !toBool(val);
+    }
+  };
+
+  template <>
+  struct Calc<NotNot>
+  {
+    using result_type = bool;
+
+    result_type
+    operator()(Expr& val) const
+    {
+      return toBool(val);
+    }
+  };
+
+  template <>
+  struct Calc<Cat> : StringOperator
+  {
+    using StringOperator::result_type;
+
+    result_type
+    operator()(const json::string& lhs, const json::string& rhs) const
+    {
+      json::string tmp;
+
+      tmp.reserve(lhs.size()+rhs.size());
+
+      tmp.append(lhs.begin(), lhs.end());
+      tmp.append(rhs.begin(), rhs.end());
+
+      return toValueExpr(std::move(tmp));
+    }
+  };
 
   struct Calculator : FwdVisitor
   {
-      using VarAccess = std::function<JsonExpr(const std::string& name)>;
+      using VarAccess = std::function<ValueExpr(const json::string&, int)>;
 
       explicit
       Calculator(VarAccess varAccess)
       : vars(std::move(varAccess)), evalstack()
       {}
 
-      void visit(JsonExpr& n, const Eq&)           override;
-      void visit(JsonExpr& n, const StrictEq&)     override;
-      void visit(JsonExpr& n, const Neq&)          override;
-      void visit(JsonExpr& n, const StrictNeq&)    override;
-      void visit(JsonExpr& n, const Less&)         override;
-      void visit(JsonExpr& n, const Greater&)      override;
-      void visit(JsonExpr& n, const Leq&)          override;
-      void visit(JsonExpr& n, const Geq&)          override;
-      void visit(JsonExpr& n, const And&)          override;
-      void visit(JsonExpr& n, const Or&)           override;
-      void visit(JsonExpr& n, const Not&)          override;
-      void visit(JsonExpr& n, const NotNot&)       override;
-      void visit(JsonExpr& n, const Add&)          override;
-      void visit(JsonExpr& n, const Sub&)          override;
-      void visit(JsonExpr& n, const Mul&)          override;
-      void visit(JsonExpr& n, const Div&)          override;
-      void visit(JsonExpr& n, const Mod&)          override;
-      void visit(JsonExpr& n, const Min&)          override;
-      void visit(JsonExpr& n, const Max&)          override;
-      void visit(JsonExpr& n, const Map&)          override;
-      void visit(JsonExpr& n, const Reduce&)       override;
-      void visit(JsonExpr& n, const Filter&)       override;
-      void visit(JsonExpr& n, const All&)          override;
-      void visit(JsonExpr& n, const None&)         override;
-      void visit(JsonExpr& n, const Some&)         override;
-      void visit(JsonExpr& n, const Merge&)        override;
-      void visit(JsonExpr& n, const Cat&)          override;
-      void visit(JsonExpr& n, const Substr&)       override;
-      void visit(JsonExpr& n, const In&)           override;
-      void visit(JsonExpr& n, const Var&)          override;
-      void visit(JsonExpr& n, const Log&)          override;
-      void visit(JsonExpr& n, const Error&)        override;
-                                                           ;
-      void visit(JsonExpr& n, std::int64_t)        override;
-      void visit(JsonExpr& n, std::uint64_t)       override;
-      void visit(JsonExpr& n, double)              override;
-      void visit(JsonExpr& n, const json::array&)  override;
-      void visit(JsonExpr& n, const json::string&) override;
+      void visit(Eq&)          final;
+      void visit(StrictEq&)    final;
+      void visit(Neq&)         final;
+      void visit(StrictNeq&)   final;
+      void visit(Less&)        final;
+      void visit(Greater&)     final;
+      void visit(Leq&)         final;
+      void visit(Geq&)         final;
+      void visit(And&)         final;
+      void visit(Or&)          final;
+      void visit(Not&)         final;
+      void visit(NotNot&)      final;
+      void visit(Add&)         final;
+      void visit(Sub&)         final;
+      void visit(Mul&)         final;
+      void visit(Div&)         final;
+      void visit(Mod&)         final;
+      void visit(Min&)         final;
+      void visit(Max&)         final;
+      void visit(Array&)       final;
+      void visit(Map&)         final;
+      void visit(Reduce&)      final;
+      void visit(Filter&)      final;
+      void visit(All&)         final;
+      void visit(None&)        final;
+      void visit(Some&)        final;
+      void visit(Merge&)       final;
+      void visit(Cat&)         final;
+      void visit(Substr&)      final;
+      void visit(In&)          final;
+      void visit(Var&)         final;
+      void visit(Log&)         final;
+
+      void visit(NullVal& n)   final;
+      void visit(BoolVal& n)   final;
+      void visit(IntVal& n)    final;
+      void visit(UintVal& n)   final;
+      void visit(DoubleVal& n) final;
+      void visit(StringVal& n) final;
+
+      void visit(Error& n)     final;
+
+      AnyExpr result() &&
+      {
+        assert(evalstack.size() == 1);
+
+        return std::move(evalstack.back());
+      }
 
     private:
-      VarAccess             vars;
-      std::vector<JsonExpr> evalstack;
+      VarAccess vars;
+      EvalStack evalstack;
 
-      std::vector<JsonExpr>::iterator
-      arg(int num = 0)
-      {
-        return evalstack.end() - num;
-      }
-
-      void convertTypes(JsonExpr& n);
+      //
+      // opers
 
       template <class BinaryPredicate>
-      void comparePairWise(JsonExpr& n, BinaryPredicate pred)
+      void evalPairShortCircuit(Operator& n, BinaryPredicate calc)
       {
-        int                                   num = operandCount(n);
+        using Iterator = EvalStack::iterator;
+
+        const int      num = n.num_evaluated_operands();
         assert(num >= 2);
 
-        std::vector<JsonExpr>::iterator       aa  = arg(num);
-        const std::vector<JsonExpr>::iterator zz  = arg(1);
-        bool                                  res = true;
+        // make sure that coercions do not trigger a resize of the vector
+        //   as this may invalidate the extracted pointers.
+        evalstack.reserve(evalstack.size() + 2);
 
-        while (res && (aa != zz))
+        Iterator       lhs = evalstack.arg(num);
+        const Iterator zzz = evalstack.end();
+        const Iterator lst = std::prev(zzz);
+        bool           res = true;
+
+        while (res && (lhs != lst))
         {
-          res = pred(*(aa), *(aa+1));
-          ++aa;
+          Iterator rhs = std::next(lhs);
+
+          res = compute(*lhs, *rhs, evalstack, calc);
+
+          evalstack.pop_tail(zzz);
+          lhs = rhs;
         }
 
-        pop(num);
-        push(res);
+        evalstack.pop(num);
+        evalstack.push(new BoolVal{res});
       }
 
-      template <class UnaryPredicate>
-      void testEachElement(JsonExpr& n, bool init)
+      template <class BinaryOperator>
+      void reduce(Operator& n, BinaryOperator op)
       {
-        int                                   num = operandCount(n);
+        using Iterator = EvalStack::iterator;
+
+        const int      num = n.num_evaluated_operands();
         assert(num >= 2);
 
-        // \todo convert all types to bool
+        // make sure that coercions cannot trigger a resize of the vector
+        //   as this could invalidate the extracted pointers.
+        evalstack.reserve(evalstack.size() + 2);
 
-        std::vector<JsonExpr>::iterator       aa  = arg(num);
-        const std::vector<JsonExpr>::iterator zz  = arg();
-        bool                                  res = init;
+        Iterator       elm = evalstack.arg(num);
+        const Iterator zzz = evalstack.arg();   // the last right-hand side
+        ValueExpr      res = convert(std::move(*elm), op);
 
-        while ((res == init) && (aa != zz))
+        ++elm;
+
+        while (elm != zzz)
         {
-          if (asBool(*aa) == !init) res = !init;
+          ValueExpr rhs = convert(std::move(*elm), op);
 
-          ++aa;
+          res = compute(res, rhs, evalstack, op);
+
+          evalstack.pop_tail(zzz);
+          ++elm;
         }
 
-        pop(num);
-        push(res);
+        evalstack.pop(num);
+        evalstack.push(std::move(res));
+      }
+
+      template <class BinaryOperator>
+      void binary(Operator& n, BinaryOperator calc)
+      {
+        using Iterator = EvalStack::iterator;
+
+        const int num = n.num_evaluated_operands();
+        assert(num == 1 || num == 2);
+
+#if NON_STACK_BASED_CODE
+        int       idx = -1;
+        ValueExpr res;
+
+        if (num == 2)
+        {
+          CXX_LIKELY;
+          res = eval(n.get(++idx));
+        }
+        else
+        {
+          res = toValueExpr(0);
+        }
+
+        ValueExpr rhs = eval(n.get(++idx));
+
+        return compute(lhs, rhs, evalstack, calc);
+#endif
+
+
+        // make sure that coercions do not trigger a resize of the vector
+        //   as this may invalidate the extracted pointers.
+        evalstack.reserve(evalstack.size() + 2);
+
+        Iterator  zzz = evalstack.arg(num);
+        ValueExpr res;
+
+        if (num == 2)
+        {
+          CXX_LIKELY;
+          res = compute(*evalstack.arg(2), *evalstack.arg(1), evalstack, calc);
+        }
+        else
+        {
+          // convert to 0 op arg
+          res = ValueExpr(new IntVal(0));
+          res = compute(res, *evalstack.arg(1), evalstack, calc);
+        }
+
+        evalstack.pop_tail(zzz);
+        evalstack.push(std::move(res));
+      }
+
+      template <class UnaryOperator>
+      void unary(Operator& n, UnaryOperator calc)
+      {
+        const int      num = n.num_evaluated_operands();
+        assert(num == 1);
+
+        bool res = calc(*(evalstack.arg()->get()));
+
+        evalstack.pop(1);
+        evalstack.push(new BoolVal(res));
+      }
+
+      void evalShortCircuit(Operator& n, bool val)
+      {
+        using Iterator = EvalStack::iterator;
+
+        const int      num = n.num_evaluated_operands();
+        assert(num >= 1);
+
+        Iterator       aa    = evalstack.arg(num);
+        const Iterator last  = evalstack.arg(1);
+        bool           found = (aa == last) || (toBool(*(aa->get())) == val);
+
+        // loop until *aa == val or when *aa is the last valid element
+        while (!found)
+        {
+          ++aa;
+          found = (aa == last) || (toBool(*(aa->get())) == val);
+        }
+
+        // not: JsonExpr tmp{std::move(*aa)};
+        AnyExpr tmp{std::move(*aa)};
+
+        evalstack.pop(num);
+        evalstack.push(std::move(tmp));
+      }
+
+      template <class ValueNode>
+      void _value(const ValueNode& val)
+      {
+        evalstack.push(toValueExpr(val.value()));
       }
   };
 
-  void Calculator::convertTypes(JsonExpr& n)
+  void Calculator::visit(Eq& n)
   {
-    int num = operandCount(n);
-    auto conversion = std::for_each(arg(operands), arg(), TypeMatic{});
-
-    std::for_each(arg(operands), arg(), conv);
+    traverseChildren(*this, n);
+    evalPairShortCircuit(n, Calc<Eq>{});
   }
 
-  void Calculator::convertTypes(int num)
+  void Calculator::visit(StrictEq& n)
   {
-    auto conversion = std::for_each(arg(operands), arg(), TypeMatic{});
+    traverseChildren(*this, n);
+    evalPairShortCircuit(n, Calc<StrictEq>{});
+  }
 
-    std::for_each(arg(operands), arg(), conv);
+  void Calculator::visit(Neq& n)
+  {
+    traverseChildren(*this, n);
+    evalPairShortCircuit(n, Calc<Neq>{});
+  }
+
+  void Calculator::visit(StrictNeq& n)
+  {
+    traverseChildren(*this, n);
+    evalPairShortCircuit(n, Calc<StrictNeq>{});
+  }
+
+  void Calculator::visit(Less& n)
+  {
+    traverseChildren(*this, n);
+    evalPairShortCircuit(n, Calc<Less>{});
+  }
+
+  void Calculator::visit(Greater& n)
+  {
+    traverseChildren(*this, n);
+    evalPairShortCircuit(n, Calc<Greater>{});
+  }
+
+  void Calculator::visit(Leq& n)
+  {
+    traverseChildren(*this, n);
+    evalPairShortCircuit(n, Calc<Leq>{});
+  }
+
+  void Calculator::visit(Geq& n)
+  {
+    traverseChildren(*this, n);
+    evalPairShortCircuit(n, Calc<Geq>{});
+  }
+
+  void Calculator::visit(And& n)
+  {
+    traverseChildren(*this, n);
+    evalShortCircuit(n, false);
+  }
+
+  void Calculator::visit(Or& n)
+  {
+    traverseChildren(*this, n);
+    evalShortCircuit(n, true);
+  }
+
+  void Calculator::visit(Not& n)
+  {
+    traverseChildren(*this, n);
+    unary(n, Calc<Not>{});
+  }
+
+  void Calculator::visit(NotNot& n)
+  {
+    traverseChildren(*this, n);
+    unary(n, Calc<NotNot>{});
+  }
+
+  void Calculator::visit(Add& n)
+  {
+    traverseChildren(*this, n);
+    reduce(n, Calc<Add>{});
+  }
+
+  void Calculator::visit(Sub& n)
+  {
+    traverseChildren(*this, n);
+    binary(n, Calc<Sub>{});
+  }
+
+  void Calculator::visit(Mul& n)
+  {
+    traverseChildren(*this, n);
+    reduce(n, Calc<Mul>{});
+  }
+
+  void Calculator::visit(Div& n)
+  {
+    traverseChildren(*this, n);
+    binary(n, Calc<Div>{});
+  }
+
+  void Calculator::visit(Mod& n)
+  {
+    traverseChildren(*this, n);
+    binary(n, Calc<Mod>{});
+  }
+
+  void Calculator::visit(Min& n)
+  {
+    traverseChildren(*this, n);
+    reduce(n, Calc<Min>{});
+  }
+
+  void Calculator::visit(Max& n)
+  {
+    traverseChildren(*this, n);
+    reduce(n, Calc<Max>{});
+  }
+
+  void Calculator::visit(Cat& n)
+  {
+    traverseChildren(*this, n);
+    reduce(n, Calc<Cat>{});
+  }
+
+  void Calculator::visit(Substr&)         { unsupported(); }
+  void Calculator::visit(Array&)          { unsupported(); }
+  void Calculator::visit(Map&)            { unsupported(); }
+  void Calculator::visit(Reduce&)         { unsupported(); }
+  void Calculator::visit(Filter&)         { unsupported(); }
+  void Calculator::visit(All&)            { unsupported(); }
+  void Calculator::visit(None&)           { unsupported(); }
+  void Calculator::visit(Some&)           { unsupported(); }
+  void Calculator::visit(Merge&)          { unsupported(); }
+  void Calculator::visit(In&)             { unsupported(); }
+  void Calculator::visit(Error&)          { unsupported(); }
+
+  void Calculator::visit(Var& n)
+  {
+    traverseChildren(*this, n);
+
+    AnyExpr elm = convert(std::move(*evalstack.arg(1)), StringOperator{});
+
+    if (StringVal* str = dynamic_cast<StringVal*>(elm.get()))
+    {
+      CXX_LIKELY;
+      AnyExpr res = vars(str->value(), n.num());
+
+      evalstack.pop(1);
+      evalstack.push(std::move(res));
+      return;
+    }
+
+    typeError();
   }
 
 
-  void Calculator::visit(JsonExpr& n, const Eq& tag)
+  void Calculator::visit(Log&)
   {
-    convertTypes(n);
-    visit(n, StrictEq{});
+    unsupported();
+    //~ std::cerr << *evalstack.arg(1) << std::endl;
   }
 
-  void Calculator::visit(JsonExpr& n, const StrictEq& tag)
-  {
-    comparePairWise(n, strictEqual);
-  }
+  void Calculator::visit(NullVal& n)   { _value(n); }
+  void Calculator::visit(BoolVal& n)   { _value(n); }
+  void Calculator::visit(IntVal& n)    { _value(n); }
+  void Calculator::visit(UintVal& n)   { _value(n); }
+  void Calculator::visit(DoubleVal& n) { _value(n); }
+  void Calculator::visit(StringVal& n) { _value(n); }
 
-  void Calculator::visit(JsonExpr& n, const Neq& tag)
-  {
-    convertTypes(num);
-    visit(n, StrictNeq{});
-  }
-
-  void Calculator::visit(JsonExpr& n, const StrictNeq& tag)
-  {
-    comparePairWise(n, strictNotEqual);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Less& tag)
-  {
-    convertTypes(n); // needed?
-
-    comparePairWise(n, lessThan);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Greater& tag)
-  {
-    convertTypes(n); // needed?
-
-    comparePairWise(n, greaterThan);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Leq& tag)
-  {
-    convertTypes(n); // needed?
-
-    comparePairWise(n, lessOrEqualThan);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Geq& tag)
-  {
-    convertTypes(n); // needed?
-
-    comparePairWise(n, greaterOrEqualThan);
-  }
-
-  void Calculator::visit(JsonExpr& n, const And& tag)
-  {
-    testEachElement(n, false, true);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Or& tag)
-  {
-    testEachElement(n, true, false);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Not& tag)
-  {
-    bool res = logicalNegate(*arg());
-
-    pop(1);
-    push(res);
-  }
-
-  void Calculator::visit(JsonExpr& n, const NotNot& tag)
-  {
-    bool res = !logicalNegate(*arg());
-
-    pop(1);
-    push(res);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Add& tag)
-  {
-    reduce(n, arithAdd);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Sub& tag)
-  {
-    reduce(n, arithSub);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Mul& tag)
-  {
-    reduce(n, arithMul);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Div& tag)
-  {
-    reduce(n, arithDiv);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Mod& tag)
-  {
-    reduce(n, arithMod);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Min& tag)
-  {
-    reduce(n, arithMin);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Max& tag)
-  {
-    reduce(n, arithMax);
-  }
-
-  void Calculator::visit(JsonExpr& n, const Map& tag)
-  {
-  }
-
-  void Calculator::visit(JsonExpr& n, const Reduce& tag)
-  {
-
-  }
-
-  void Calculator::visit(JsonExpr& n, const Filter& tag)
-  {
-    //
-  }
-
-  void Calculator::visit(JsonExpr& n, const All& tag)
-
-  void Calculator::visit(JsonExpr& n, const None& tag)
-
-  void Calculator::visit(JsonExpr& n, const Some& tag)
-
-  void Calculator::visit(JsonExpr& n, const Merge& tag)
-
-  void Calculator::visit(JsonExpr& n, const Cat& tag)
-
-  void Calculator::visit(JsonExpr& n, const Substr& tag)
-
-  void Calculator::visit(JsonExpr& n, const In& tag)
-
-  void Calculator::visit(JsonExpr& n, const Var& tag)
-
-  void Calculator::visit(JsonExpr& n, const Log& tag)
-
-  void Calculator::visit(JsonExpr& n, const Error& tag)
-
-
-  void Calculator::visit(JsonExpr& n, std::int64_t v)        { _value(n, v); }
-  void Calculator::visit(JsonExpr& n, std::uint64_t v)       { _value(n, v); }
-  void Calculator::visit(JsonExpr& n, double v)              { _value(n, v); }
-  void Calculator::visit(JsonExpr& n, const json::array& v)  { _value(n, v); }
-  void Calculator::visit(JsonExpr& n, const json::string& v) { _value(n, v); }
-
-
-  void traverseInSAttributeOrder(JsonExpr& n, Visitor& vis)
+  void traverseInSAttributeOrder(Expr& e, Visitor& vis)
   {
     SAttributeTraversal trav{vis};
 
-    dispatch(n, trav);
+    e.accept(trav);
+  }
+
+  ValueExpr calculate(ValueExpr& exp, Calculator::VarAccess vars)
+  {
+    Calculator calc{std::move(vars)};
+
+    exp->accept(calc);
+    return std::move(calc).result();
+  }
+
+  ValueExpr calculate(ValueExpr& exp)
+  {
+    return calculate(exp, [](const json::string&, int) -> ValueExpr { unsupported(); });
+  }
+
+  std::ostream& operator<<(std::ostream& os, ValueExpr& n)
+  {
+    struct ValuePrinter : FwdVisitor
+    {
+      explicit
+      ValuePrinter(std::ostream& stream)
+      : os(stream)
+      {}
+
+      void visit(NullVal&)     final { os << toString(nullptr); }
+      void visit(BoolVal& n)   final { os << toString(n.value()); }
+      void visit(IntVal& n)    final { os << n.value(); }
+      void visit(UintVal& n)   final { os << n.value(); }
+      void visit(DoubleVal& n) final { os << n.value(); }
+      void visit(StringVal& n) final { os << n.value(); }
+      void visit(Array&)       final { unsupported(); }
+
+      std::ostream& os;
+    };
+
+    ValuePrinter prn{os};
+
+    n->accept(prn);
+    return os;
   }
 }
