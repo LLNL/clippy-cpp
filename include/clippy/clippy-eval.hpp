@@ -14,7 +14,6 @@
 namespace json_logic
 {
   constexpr bool DEBUG_OUTPUT    = true;
-  constexpr bool DEBUG_EVALSTACK = false;
 
   namespace json = boost::json;
 
@@ -75,6 +74,11 @@ namespace json_logic
     void set_operands(container_type&& opers)
     {
       this->swap(opers);
+    }
+
+    Expr& operand(int n) const
+    {
+      return deref(this->at(n).get());
     }
 
     virtual int num_evaluated_operands() const;
@@ -961,58 +965,6 @@ namespace json_logic
   ValueExpr toValueExpr(double val)        { return ValueExpr(new DoubleVal(val)); }
   ValueExpr toValueExpr(json::string val)  { return ValueExpr(new StringVal(std::move(val))); }
 
-  struct EvalStack : private std::vector<ValueExpr>
-  {
-    using base = std::vector<ValueExpr>;
-
-    EvalStack()
-    : base()
-    {}
-
-    using base::iterator;
-    using base::begin;
-    using base::end;
-    using base::back;
-    using base::size;
-    using base::reserve;
-
-    iterator arg(int num = 0)
-    {
-      assert(base::size() >= size_t(num));
-
-      return end() - num;
-    }
-
-    void pop_tail(iterator pos)
-    {
-      if (DEBUG_EVALSTACK)
-        std::cerr << "- " << std::distance(pos, end()) << std::endl;
-
-      base::erase(pos, end());
-    }
-
-    void pop(int i = 1)
-    {
-      pop_tail(arg(i));
-    }
-
-    void push(ValueExpr&& elem)
-    {
-      base::emplace_back(std::move(elem));
-
-      if (DEBUG_EVALSTACK)
-        std::cerr << "+ " << base::back() << " @" << base::size() << std::endl;
-    }
-
-    void push(Expr* elem)
-    {
-      base::emplace_back(elem);
-
-      if (DEBUG_EVALSTACK)
-        std::cerr << "+ " << base::back() << " @" << base::size() << std::endl;
-    }
-  };
-
   //
   // coercion functions
 
@@ -1031,6 +983,11 @@ namespace json_logic
     return b;
   }
 
+  std::int64_t toInt(std::uint64_t v)
+  {
+    return v;
+  }
+
   std::uint64_t toUint(const json::string& str)
   {
     return std::stoull(std::string{str.c_str()});
@@ -1039,6 +996,11 @@ namespace json_logic
   std::uint64_t toUint(double d)
   {
     return d;
+  }
+
+  std::uint64_t toUint(std::int64_t v)
+  {
+    return v;
   }
 
   std::uint64_t toUint(bool b)
@@ -1050,6 +1012,17 @@ namespace json_logic
   {
     return std::stod(std::string{str.c_str()});
   }
+
+  double toDouble(std::int64_t val)
+  {
+    return val;
+  }
+
+  double toDouble(std::uint64_t val)
+  {
+    return val;
+  }
+
 
   template <class Val>
   json::string toString(Val v)
@@ -1121,91 +1094,75 @@ namespace json_logic
     using result_type   = bool;
   };
 
+  struct NoCoercion {};
+
   /// \brief a strict binary operator operates on operands of the same
   ///        type. The operation on two different types returns false.
   ///        NO type coercion is performed.
   struct StrictLogicalBinaryOperator : LogicalOperatorBase
   {
     template <class LhsT, class RhsT>
-    std::tuple<LhsT*, RhsT*>
-    coerce(LhsT* lv, RhsT* rv, EvalStack&)
+    std::tuple<LhsT, RhsT>
+    coerce(LhsT* lv, RhsT* rv)
     {
-      return std::make_tuple(lv, rv);
+      return std::make_tuple(std::move(*lv), std::move(*rv));
     }
   };
 
   struct NumericBinaryOperatorBase
   {
-    std::tuple<double*, double*>
-    coerce(double* lv, double* rv, EvalStack&)
+    std::tuple<double, double>
+    coerce(double* lv, double* rv)
     {
-      return std::make_tuple(lv, rv);
+      return std::make_tuple(*lv, *rv);
     }
 
-    std::tuple<double*, double*>
-    coerce(double* lv, std::int64_t* rv, EvalStack& stack)
+    std::tuple<double, double>
+    coerce(double* lv, std::int64_t* rv)
     {
-      DoubleVal* tmp = new DoubleVal(*rv);
-
-      stack.push(tmp);
-      return std::make_tuple(lv, &tmp->value());
+      return std::make_tuple(*lv, toDouble(*rv));
     }
 
-    std::tuple<double*, double*>
-    coerce(double* lv, std::uint64_t* rv, EvalStack& stack)
+    std::tuple<double, double>
+    coerce(double* lv, std::uint64_t* rv)
     {
-      DoubleVal* tmp = new DoubleVal(*rv);
-
-      stack.push(tmp);
-      return std::make_tuple(lv, &tmp->value());
+      return std::make_tuple(*lv, toDouble(*rv));
     }
 
-    std::tuple<double*, double*>
-    coerce(std::int64_t* lv, double* rv, EvalStack& stack)
+    std::tuple<double, double>
+    coerce(std::int64_t* lv, double* rv)
     {
-      DoubleVal* tmp = new DoubleVal(*lv);
-
-      stack.push(tmp);
-      return std::make_tuple(&tmp->value(), rv);
+      return std::make_tuple(toDouble(*lv), *rv);
     }
 
-    std::tuple<std::int64_t*, std::int64_t*>
-    coerce(std::int64_t* lv, std::int64_t* rv, EvalStack&)
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(std::int64_t* lv, std::int64_t* rv)
     {
-      return std::make_tuple(lv, rv);
+      return std::make_tuple(*lv, *rv);
     }
 
-    std::tuple<std::int64_t*, std::int64_t*>
-    coerce(std::int64_t* lv, std::uint64_t* rv, EvalStack& stack)
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(std::int64_t* lv, std::uint64_t* rv)
     {
-      IntVal* tmp = new IntVal(*rv);
-
-      stack.push(tmp);
-      return std::make_tuple(lv, &tmp->value());
+      return std::make_tuple(*lv, toInt(*rv));
     }
 
-    std::tuple<double*, double*>
-    coerce(std::uint64_t* lv, double* rv, EvalStack& stack)
+    std::tuple<double, double>
+    coerce(std::uint64_t* lv, double* rv)
     {
-      DoubleVal* tmp = new DoubleVal(*lv);
-
-      stack.push(tmp);
-      return std::make_tuple(&tmp->value(), rv);
+      return std::make_tuple(toDouble(*lv), *rv);
     }
 
-    std::tuple<std::int64_t*, std::int64_t*>
-    coerce(std::uint64_t* lv, std::int64_t* rv, EvalStack& stack)
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(std::uint64_t* lv, std::int64_t* rv)
     {
-      IntVal* tmp = new IntVal(*lv);
-
-      stack.push(tmp);
-      return std::make_tuple(&tmp->value(), rv);
+      return std::make_tuple(toInt(*lv), *rv);
     }
 
-    std::tuple<std::uint64_t*, std::uint64_t*>
-    coerce(std::uint64_t* lv, std::uint64_t* rv, EvalStack&)
+    std::tuple<std::uint64_t, std::uint64_t>
+    coerce(std::uint64_t* lv, std::uint64_t* rv)
     {
-      return std::make_tuple(lv, rv);
+      return std::make_tuple(*lv, *rv);
     }
   };
 
@@ -1217,64 +1174,46 @@ namespace json_logic
   {
     using NumericBinaryOperatorBase::coerce;
 
-    std::tuple<double*, double*>
-    coerce(double* lv, json::string* rv, EvalStack& stack)
+    std::tuple<double, double>
+    coerce(double* lv, json::string* rv)
     {
-      DoubleVal* tmp = new DoubleVal(toDouble(*rv));
-
-      stack.push(tmp);
-      return std::make_tuple(lv, &tmp->value());
+      return std::make_tuple(*lv, toDouble(*rv));
     }
 
-    std::tuple<std::int64_t*, std::int64_t*>
-    coerce(std::int64_t* lv, json::string* rv, EvalStack& stack)
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(std::int64_t* lv, json::string* rv)
     {
-      IntVal* tmp = new IntVal(toInt(*rv));
-
-      stack.push(tmp);
-      return std::make_tuple(lv, &tmp->value());
+      return std::make_tuple(*lv, toInt(*rv));
     }
 
-    std::tuple<std::uint64_t*, std::uint64_t*>
-    coerce(std::uint64_t* lv, json::string* rv, EvalStack& stack)
+    std::tuple<std::uint64_t, std::uint64_t>
+    coerce(std::uint64_t* lv, json::string* rv)
     {
-      UintVal* tmp = new UintVal(toInt(*rv));
-
-      stack.push(tmp);
-      return std::make_tuple(lv, &tmp->value());
+      return std::make_tuple(*lv, toUint(*rv));
     }
 
-    std::tuple<double*, double*>
-    coerce(json::string* lv, double* rv, EvalStack& stack)
+    std::tuple<double, double>
+    coerce(json::string* lv, double* rv)
     {
-      DoubleVal* tmp = new DoubleVal(toDouble(*lv));
-
-      stack.push(tmp);
-      return std::make_tuple(&tmp->value(), rv);
+      return std::make_tuple(toDouble(*lv), *rv);
     }
 
-    std::tuple<std::int64_t*, std::int64_t*>
-    coerce(json::string* lv, std::int64_t* rv, EvalStack& stack)
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(json::string* lv, std::int64_t* rv)
     {
-      IntVal* tmp = new IntVal(toInt(*lv));
-
-      stack.push(tmp);
-      return std::make_tuple(&tmp->value(), rv);
+      return std::make_tuple(toInt(*lv), *rv);
     }
 
-    std::tuple<std::uint64_t*, std::uint64_t*>
-    coerce(json::string* lv, std::uint64_t* rv, EvalStack& stack)
+    std::tuple<std::uint64_t, std::uint64_t>
+    coerce(json::string* lv, std::uint64_t* rv)
     {
-      UintVal* tmp = new UintVal(toInt(*lv));
-
-      stack.push(tmp);
-      return std::make_tuple(&tmp->value(), rv);
+      return std::make_tuple(toInt(*lv), *rv);
     }
 
-    std::tuple<json::string*, json::string*>
-    coerce(json::string* lv, json::string* rv, EvalStack&)
+    std::tuple<json::string, json::string>
+    coerce(json::string* lv, json::string* rv)
     {
-      return std::make_tuple(lv, rv);
+      return std::make_tuple(std::move(*lv), std::move(*rv));
     }
   };
   // @}
@@ -1296,43 +1235,43 @@ namespace json_logic
     using NumericBinaryOperatorBase::coerce;
 
     std::tuple<std::nullptr_t, std::nullptr_t>
-    coerce(double*, std::nullptr_t, EvalStack&)
+    coerce(double*, std::nullptr_t)
     {
       return std::make_tuple(nullptr, nullptr);
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
-    coerce(std::int64_t*, std::nullptr_t, EvalStack&)
+    coerce(std::int64_t*, std::nullptr_t)
     {
       return std::make_tuple(nullptr, nullptr);
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
-    coerce(std::uint64_t*, std::nullptr_t, EvalStack&)
+    coerce(std::uint64_t*, std::nullptr_t)
     {
       return std::make_tuple(nullptr, nullptr);
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
-    coerce(std::nullptr_t, double*, EvalStack&)
+    coerce(std::nullptr_t, double*)
     {
       return std::make_tuple(nullptr, nullptr);
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
-    coerce(std::nullptr_t, std::int64_t*, EvalStack&)
+    coerce(std::nullptr_t, std::int64_t*)
     {
       return std::make_tuple(nullptr, nullptr);
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
-    coerce(std::nullptr_t, std::uint64_t*, EvalStack&)
+    coerce(std::nullptr_t, std::uint64_t*)
     {
       return std::make_tuple(nullptr, nullptr);
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
-    coerce(std::nullptr_t, std::nullptr_t, EvalStack&)
+    coerce(std::nullptr_t, std::nullptr_t)
     {
       return std::make_tuple(nullptr, nullptr);
     }
@@ -1365,10 +1304,10 @@ namespace json_logic
 
     using result_type = ValueExpr;
 
-    std::tuple<json::string*, json::string*>
-    coerce(json::string* lv, json::string* rv, EvalStack&)
+    std::tuple<json::string, json::string>
+    coerce(json::string* lv, json::string* rv)
     {
-      return std::make_tuple(lv, rv);
+      return std::make_tuple(std::move(*lv), std::move(*rv));
     }
   };
 
@@ -1383,39 +1322,38 @@ namespace json_logic
   {
     struct ArithmeticConverter : FwdVisitor
     {
-      ArithmeticConverter(AnyExpr val)
-      : res(std::move(val))
-      {}
+        explicit
+        ArithmeticConverter(AnyExpr val)
+        : res(std::move(val))
+        {}
 
-      void visit(Expr&)         final { typeError(); }
+        void visit(Expr&)         final { typeError(); }
 
-      // defined for the following types
-      void visit(IntVal&)       final {}
-      void visit(UintVal&)      final {}
-      void visit(DoubleVal&)    final {}
-      void visit(NullVal&)      final {}
+        // defined for the following types
+        void visit(IntVal&)       final {}
+        void visit(UintVal&)      final {}
+        void visit(DoubleVal&)    final {}
+        void visit(NullVal&)      final {}
 
-      // need to convert values
-      void visit(StringVal& el) final
-      {
-        double  dd = toDouble(el.value());
-        int64_t ii = toInt(el.value());
-        // uint?
+        // need to convert values
+        void visit(StringVal& el) final
+        {
+          double  dd = toDouble(el.value());
+          int64_t ii = toInt(el.value());
+          // uint?
 
-        Expr* x = (dd != ii) ? static_cast<Expr*>(new DoubleVal(dd)) : new IntVal(ii);
+          res = (dd != ii) ? toValueExpr(dd) : toValueExpr(ii);
+        }
 
-        res = std::unique_ptr<Expr>(x);
-      }
+        void visit(BoolVal&) final
+        {
+          // \todo correct?
+          res = toValueExpr(nullptr);
+        }
 
-      void visit(BoolVal&) final
-      {
-        // \todo correct?
-        res = std::unique_ptr<Expr>(&mkNullValue());
-      }
-
-      AnyExpr result() && { return std::move(res); }
-
-      AnyExpr res;
+        AnyExpr result() && { return std::move(res); }
+      private:
+        AnyExpr res;
     };
 
     Expr*               node = val.get();
@@ -1429,40 +1367,42 @@ namespace json_logic
   {
     struct IntegerArithmeticConverter : FwdVisitor
     {
-      IntegerArithmeticConverter(AnyExpr val)
-      : res(std::move(val))
-      {}
+        explicit
+        IntegerArithmeticConverter(AnyExpr val)
+        : res(std::move(val))
+        {}
 
-      void visit(Expr&)         final { typeError(); }
+        void visit(Expr&)         final { typeError(); }
 
-      // defined for the following types
-      void visit(IntVal&)       final {}
-      void visit(UintVal&)      final {}
+        // defined for the following types
+        void visit(IntVal&)       final {}
+        void visit(UintVal&)      final {}
 
-      // need to convert values
-      void visit(StringVal& el) final
-      {
-        res = AnyExpr(new IntVal(toInt(el.value())));
-      }
+        // need to convert values
+        void visit(StringVal& el) final
+        {
+          res = toValueExpr(toInt(el.value()));
+        }
 
-      void visit(BoolVal& el) final
-      {
-        res = AnyExpr(new IntVal(toInt(el.value())));
-      }
+        void visit(BoolVal& el) final
+        {
+          res = toValueExpr(toInt(el.value()));
+        }
 
-      void visit(DoubleVal& el) final
-      {
-        res = AnyExpr(new IntVal(toInt(el.value())));
-      }
+        void visit(DoubleVal& el) final
+        {
+          res = toValueExpr(toInt(el.value()));
+        }
 
-      void visit(NullVal&)      final
-      {
-        res = AnyExpr(new IntVal(0));
-      }
+        void visit(NullVal&)      final
+        {
+          res = toValueExpr(std::int64_t(0));
+        }
 
-      AnyExpr result() && { return std::move(res); }
+        AnyExpr result() && { return std::move(res); }
 
-      AnyExpr res;
+      private:
+        AnyExpr res;
     };
 
     Expr*                      node = val.get();
@@ -1476,45 +1416,47 @@ namespace json_logic
   {
     struct StringConverter : FwdVisitor
     {
-      StringConverter(AnyExpr val)
-      : res(std::move(val))
-      {}
+        explicit
+        StringConverter(AnyExpr val)
+        : res(std::move(val))
+        {}
 
-      void visit(Expr&)         final { typeError(); }
+        void visit(Expr&)         final { typeError(); }
 
-      // defined for the following types
-      void visit(StringVal&)    final {}
+        // defined for the following types
+        void visit(StringVal&)    final {}
 
 
-      // need to convert values
-      void visit(BoolVal& el) final
-      {
-        res = AnyExpr(new StringVal(toString(el.value())));
-      }
+        // need to convert values
+        void visit(BoolVal& el) final
+        {
+          res = toValueExpr(toString(el.value()));
+        }
 
-      void visit(IntVal& el)    final
-      {
-        res = AnyExpr(new StringVal(toString(el.value())));
-      }
+        void visit(IntVal& el)    final
+        {
+          res = toValueExpr(toString(el.value()));
+        }
 
-      void visit(UintVal& el)   final
-      {
-        res = AnyExpr(new StringVal(toString(el.value())));
-      }
+        void visit(UintVal& el)   final
+        {
+          res = toValueExpr(toString(el.value()));
+        }
 
-      void visit(DoubleVal& el) final
-      {
-        res = AnyExpr(new StringVal(toString(el.value())));
-      }
+        void visit(DoubleVal& el) final
+        {
+          res = toValueExpr(toString(el.value()));
+        }
 
-      void visit(NullVal& el)      final
-      {
-        res = AnyExpr(new StringVal(toString(el.value())));
-      }
+        void visit(NullVal& el)      final
+        {
+          res = toValueExpr(toString(el.value()));
+        }
 
-      AnyExpr result() && { return std::move(res); }
+        AnyExpr result() && { return std::move(res); }
 
-      AnyExpr res;
+      private:
+        AnyExpr res;
     };
 
     Expr*           node = val.get();
@@ -1524,31 +1466,21 @@ namespace json_logic
     return std::move(conv).result();
   }
 
-
-  template <class LV, class RV, class BinaryOperator>
-  typename BinaryOperator::result_type
-  call_operator(LV* lhs, RV* rhs, BinaryOperator op) { return op(*lhs, *rhs); }
-
-  template <class BinaryOperator>
-  typename BinaryOperator::result_type
-  call_operator(std::nullptr_t, std::nullptr_t, BinaryOperator op) { return op(nullptr, nullptr); }
-
-
   template <class BinaryOperator, class LhsValue>
   struct BinaryOperatorVisitor_ : FwdVisitor
   {
       using result_type = typename BinaryOperator::result_type;
 
-      BinaryOperatorVisitor_(LhsValue lval, BinaryOperator oper, EvalStack& evalstack)
-      : lv(lval), op(oper), stack(evalstack)
+      BinaryOperatorVisitor_(LhsValue lval, BinaryOperator oper)
+      : lv(lval), op(oper), res()
       {}
 
       template <class RhsValue>
       void calc(RhsValue rv)
       {
-        auto [ll, rr] = op.coerce(lv, rv, stack);
+        auto [ll, rr] = op.coerce(lv, rv);
 
-        res = call_operator(ll, rr, op);
+        res = op(ll, rr);
       }
 
       void visit(Expr&) final { typeError(); }
@@ -1603,7 +1535,7 @@ namespace json_logic
 
       void visit(Array&) final
       {
-        typeError(); // for now
+        unsupported(); // for now
       }
 
       result_type result() && { return std::move(res); }
@@ -1611,7 +1543,6 @@ namespace json_logic
     private:
       LhsValue       lv;
       BinaryOperator op;
-      EvalStack&     stack;
       result_type    res;
   };
 
@@ -1620,8 +1551,8 @@ namespace json_logic
   {
       using result_type = typename BinaryOperator::result_type;
 
-      BinaryOperatorVisitor(BinaryOperator oper, EvalStack& evalstack, ValueExpr rhsarg)
-      : op(oper), stack(evalstack), rhs(std::move(rhsarg))
+      BinaryOperatorVisitor(BinaryOperator oper, ValueExpr& rhsarg)
+      : op(oper), rhs(rhsarg), res()
       {}
 
       template <class LhsValue>
@@ -1629,7 +1560,7 @@ namespace json_logic
       {
         using RhsVisitor = BinaryOperatorVisitor_<BinaryOperator, LhsValue>;
 
-        RhsVisitor vis{lv, op, stack};
+        RhsVisitor vis{lv, op};
 
         rhs->accept(vis);
         res = std::move(vis).result();
@@ -1692,25 +1623,26 @@ namespace json_logic
 
     private:
       BinaryOperator op;
-      EvalStack&     stack;
-      ValueExpr      rhs;
+      ValueExpr&     rhs;
       result_type    res;
   };
 
   template <class BinaryOperator>
   typename BinaryOperator::result_type
-  compute(ValueExpr& lhs, ValueExpr& rhs, EvalStack& stack, BinaryOperator op)
+  compute(ValueExpr& lhs, ValueExpr& rhs, BinaryOperator op)
   {
     using LhsVisitor = BinaryOperatorVisitor<BinaryOperator>;
 
-    LhsVisitor vis{op, stack, std::move(rhs)};
+    LhsVisitor vis{op, rhs};
 
+    assert(lhs.get());
     lhs->accept(vis);
     return std::move(vis).result();
   }
 
 
-  template <class JsonExprT>
+
+  template <class>
   struct Calc {};
 
 
@@ -1989,8 +1921,8 @@ namespace json_logic
       using VarAccess = std::function<ValueExpr(const json::string&, int)>;
 
       explicit
-      Calculator(VarAccess varAccess)
-      : vars(std::move(varAccess)), evalstack()
+      Calculator(const VarAccess& varAccess)
+      : vars(varAccess), calcres(nullptr)
       {}
 
       void visit(Eq&)          final;
@@ -2035,295 +1967,232 @@ namespace json_logic
 
       void visit(Error& n)     final;
 
-      AnyExpr result() &&
-      {
-        assert(evalstack.size() == 1);
-
-        return std::move(evalstack.back());
-      }
+      ValueExpr eval(Expr& n);
 
     private:
-      VarAccess vars;
-      EvalStack evalstack;
+      const VarAccess& vars;
+      ValueExpr        calcres;
 
       //
       // opers
 
+      /// implements relop : [1, 2, 3, whatever]
       template <class BinaryPredicate>
       void evalPairShortCircuit(Operator& n, BinaryPredicate calc)
       {
-        using Iterator = EvalStack::iterator;
-
         const int      num = n.num_evaluated_operands();
         assert(num >= 2);
 
-        // make sure that coercions do not trigger a resize of the vector
-        //   as this may invalidate the extracted pointers.
-        evalstack.reserve(evalstack.size() + 2);
-
-        Iterator       lhs = evalstack.arg(num);
-        const Iterator zzz = evalstack.end();
-        const Iterator lst = std::prev(zzz);
         bool           res = true;
+        int            idx = -1;
+        ValueExpr      rhs = eval(n.operand(++idx));
+        assert(rhs.get());
 
-        while (res && (lhs != lst))
+        while (res && (idx != (num-1)))
         {
-          Iterator rhs = std::next(lhs);
+          ValueExpr    lhs = std::move(rhs);
+          assert(lhs.get());
 
-          res = compute(*lhs, *rhs, evalstack, calc);
+          rhs = eval(n.operand(++idx));
+          assert(rhs.get());
 
-          evalstack.pop_tail(zzz);
-          lhs = rhs;
+          res = compute(lhs, rhs, calc);
         }
 
-        evalstack.pop(num);
-        evalstack.push(new BoolVal{res});
+        calcres = toValueExpr(res);
       }
 
       template <class BinaryOperator>
       void reduce(Operator& n, BinaryOperator op)
       {
-        using Iterator = EvalStack::iterator;
-
         const int      num = n.num_evaluated_operands();
-        assert(num >= 2);
+        assert(num >= 1);
 
-        // make sure that coercions cannot trigger a resize of the vector
-        //   as this could invalidate the extracted pointers.
-        evalstack.reserve(evalstack.size() + 2);
+        int            idx = -1;
+        ValueExpr      res = eval(n.operand(++idx));
 
-        Iterator       elm = evalstack.arg(num);
-        const Iterator zzz = evalstack.arg();   // the last right-hand side
-        ValueExpr      res = convert(std::move(*elm), op);
+        res = convert(std::move(res), op);
 
-        ++elm;
-
-        while (elm != zzz)
+        while (idx != (num-1))
         {
-          ValueExpr rhs = convert(std::move(*elm), op);
+          ValueExpr rhs = eval(n.operand(++idx));
 
-          res = compute(res, rhs, evalstack, op);
-
-          evalstack.pop_tail(zzz);
-          ++elm;
+          rhs = convert(std::move(rhs), op);
+          res = compute(res, rhs, op);
         }
 
-        evalstack.pop(num);
-        evalstack.push(std::move(res));
+        calcres = std::move(res);
       }
 
       template <class BinaryOperator>
       void binary(Operator& n, BinaryOperator calc)
       {
-        using Iterator = EvalStack::iterator;
-
         const int num = n.num_evaluated_operands();
         assert(num == 1 || num == 2);
 
-#if NON_STACK_BASED_CODE
         int       idx = -1;
-        ValueExpr res;
+        ValueExpr lhs;
 
         if (num == 2)
         {
           CXX_LIKELY;
-          res = eval(n.get(++idx));
+          lhs = eval(n.operand(++idx));
         }
         else
         {
-          res = toValueExpr(0);
+          lhs = toValueExpr(std::int64_t(0));
         }
 
-        ValueExpr rhs = eval(n.get(++idx));
+        ValueExpr rhs = eval(n.operand(++idx));
 
-        return compute(lhs, rhs, evalstack, calc);
-#endif
-
-
-        // make sure that coercions do not trigger a resize of the vector
-        //   as this may invalidate the extracted pointers.
-        evalstack.reserve(evalstack.size() + 2);
-
-        Iterator  zzz = evalstack.arg(num);
-        ValueExpr res;
-
-        if (num == 2)
-        {
-          CXX_LIKELY;
-          res = compute(*evalstack.arg(2), *evalstack.arg(1), evalstack, calc);
-        }
-        else
-        {
-          // convert to 0 op arg
-          res = ValueExpr(new IntVal(0));
-          res = compute(res, *evalstack.arg(1), evalstack, calc);
-        }
-
-        evalstack.pop_tail(zzz);
-        evalstack.push(std::move(res));
+        calcres = compute(lhs, rhs, calc);
       }
 
       template <class UnaryOperator>
       void unary(Operator& n, UnaryOperator calc)
       {
-        const int      num = n.num_evaluated_operands();
+        const int  num = n.num_evaluated_operands();
         assert(num == 1);
 
-        bool res = calc(*(evalstack.arg()->get()));
+        const bool res = calc(*eval(n.operand(0)));
 
-        evalstack.pop(1);
-        evalstack.push(new BoolVal(res));
+        calcres = toValueExpr(res);
       }
 
       void evalShortCircuit(Operator& n, bool val)
       {
-        using Iterator = EvalStack::iterator;
-
         const int      num = n.num_evaluated_operands();
         assert(num >= 1);
 
-        Iterator       aa    = evalstack.arg(num);
-        const Iterator last  = evalstack.arg(1);
-        bool           found = (aa == last) || (toBool(*(aa->get())) == val);
+        int            idx   = -1;
+        ValueExpr      oper  = eval(n.operand(++idx));
+        bool           found = (idx == num-1) || (toBool(*oper) == val);
 
         // loop until *aa == val or when *aa is the last valid element
         while (!found)
         {
-          ++aa;
-          found = (aa == last) || (toBool(*(aa->get())) == val);
+          oper = eval(n.operand(++idx));
+
+          found = (idx == (num-1)) || (toBool(*oper) == val);
         }
 
-        // not: JsonExpr tmp{std::move(*aa)};
-        AnyExpr tmp{std::move(*aa)};
-
-        evalstack.pop(num);
-        evalstack.push(std::move(tmp));
+        calcres = std::move(oper);
       }
 
       template <class ValueNode>
       void _value(const ValueNode& val)
       {
-        evalstack.push(toValueExpr(val.value()));
+        calcres = toValueExpr(val.value());
       }
   };
 
+  ValueExpr Calculator::eval(Expr& n)
+  {
+    ValueExpr res;
+
+    n.accept(*this);
+    res.swap(calcres);
+
+    return res;
+  }
+
   void Calculator::visit(Eq& n)
   {
-    traverseChildren(*this, n);
     evalPairShortCircuit(n, Calc<Eq>{});
   }
 
   void Calculator::visit(StrictEq& n)
   {
-    traverseChildren(*this, n);
     evalPairShortCircuit(n, Calc<StrictEq>{});
   }
 
   void Calculator::visit(Neq& n)
   {
-    traverseChildren(*this, n);
     evalPairShortCircuit(n, Calc<Neq>{});
   }
 
   void Calculator::visit(StrictNeq& n)
   {
-    traverseChildren(*this, n);
     evalPairShortCircuit(n, Calc<StrictNeq>{});
   }
 
   void Calculator::visit(Less& n)
   {
-    traverseChildren(*this, n);
     evalPairShortCircuit(n, Calc<Less>{});
   }
 
   void Calculator::visit(Greater& n)
   {
-    traverseChildren(*this, n);
     evalPairShortCircuit(n, Calc<Greater>{});
   }
 
   void Calculator::visit(Leq& n)
   {
-    traverseChildren(*this, n);
     evalPairShortCircuit(n, Calc<Leq>{});
   }
 
   void Calculator::visit(Geq& n)
   {
-    traverseChildren(*this, n);
     evalPairShortCircuit(n, Calc<Geq>{});
   }
 
   void Calculator::visit(And& n)
   {
-    traverseChildren(*this, n);
     evalShortCircuit(n, false);
   }
 
   void Calculator::visit(Or& n)
   {
-    traverseChildren(*this, n);
     evalShortCircuit(n, true);
   }
 
   void Calculator::visit(Not& n)
   {
-    traverseChildren(*this, n);
     unary(n, Calc<Not>{});
   }
 
   void Calculator::visit(NotNot& n)
   {
-    traverseChildren(*this, n);
     unary(n, Calc<NotNot>{});
   }
 
   void Calculator::visit(Add& n)
   {
-    traverseChildren(*this, n);
     reduce(n, Calc<Add>{});
   }
 
   void Calculator::visit(Sub& n)
   {
-    traverseChildren(*this, n);
     binary(n, Calc<Sub>{});
   }
 
   void Calculator::visit(Mul& n)
   {
-    traverseChildren(*this, n);
     reduce(n, Calc<Mul>{});
   }
 
   void Calculator::visit(Div& n)
   {
-    traverseChildren(*this, n);
     binary(n, Calc<Div>{});
   }
 
   void Calculator::visit(Mod& n)
   {
-    traverseChildren(*this, n);
     binary(n, Calc<Mod>{});
   }
 
   void Calculator::visit(Min& n)
   {
-    traverseChildren(*this, n);
     reduce(n, Calc<Min>{});
   }
 
   void Calculator::visit(Max& n)
   {
-    traverseChildren(*this, n);
     reduce(n, Calc<Max>{});
   }
 
   void Calculator::visit(Cat& n)
   {
-    traverseChildren(*this, n);
     reduce(n, Calc<Cat>{});
   }
 
@@ -2341,17 +2210,14 @@ namespace json_logic
 
   void Calculator::visit(Var& n)
   {
-    traverseChildren(*this, n);
+    assert(n.num_evaluated_operands() == 1);
 
-    AnyExpr elm = convert(std::move(*evalstack.arg(1)), StringOperator{});
+    AnyExpr elm = convert(eval(n.operand(0)), StringOperator{});
 
     if (StringVal* str = dynamic_cast<StringVal*>(elm.get()))
     {
       CXX_LIKELY;
-      AnyExpr res = vars(str->value(), n.num());
-
-      evalstack.pop(1);
-      evalstack.push(std::move(res));
+      calcres = vars(str->value(), n.num());
       return;
     }
 
@@ -2383,8 +2249,8 @@ namespace json_logic
   {
     Calculator calc{std::move(vars)};
 
-    exp->accept(calc);
-    return std::move(calc).result();
+    assert(exp.get());
+    return calc.eval(*exp);
   }
 
   ValueExpr calculate(ValueExpr& exp)
