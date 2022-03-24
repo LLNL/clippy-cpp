@@ -965,6 +965,58 @@ namespace json_logic
   ValueExpr toValueExpr(double val)        { return ValueExpr(new DoubleVal(val)); }
   ValueExpr toValueExpr(json::string val)  { return ValueExpr(new StringVal(std::move(val))); }
 
+#if 0
+  ValueExpr toValueExpr(const json::value& n)
+  {
+    ValueExpr res;
+
+    switch (n.kind())
+    {
+      case json::kind::string:
+        {
+          res = toValueExpr(n.get_string());
+          break;
+        }
+
+      case json::kind::int64:
+        {
+          res = toValueExpr(n.get_int64());
+          break;
+        }
+
+      case json::kind::uint64:
+        {
+          res = toValueExpr(n.get_uint64());
+          break;
+        }
+
+      case json::kind::double_:
+        {
+          res = toValueExpr(n.get_double());
+          break;
+        }
+
+      case json::kind::bool_:
+        {
+          res = toValueExpr(n.get_bool());
+          break;
+        }
+
+      case json::kind::null:
+        {
+          res = toValueExpr(nullptr);
+          break;
+        }
+
+      default:
+        unsupported();
+    }
+
+    assert(res.get());
+    return res;
+  }
+#endif
+
   //
   // coercion functions
 
@@ -1093,8 +1145,6 @@ namespace json_logic
 
     using result_type   = bool;
   };
-
-  struct NoCoercion {};
 
   /// \brief a strict binary operator operates on operands of the same
   ///        type. The operation on two different types returns false.
@@ -1916,13 +1966,27 @@ namespace json_logic
     }
   };
 
+  template <>
+  struct Calc<In> : StringOperator // \todo the conversion rules differ is different from
+  {
+    using StringOperator::result_type;
+
+    result_type
+    operator()(const json::string& lhs, const json::string& rhs) const
+    {
+      bool res = (lhs.find(rhs) != json::string::npos);
+
+      return toValueExpr(std::move(res));
+    }
+  };
+
+
   struct Calculator : FwdVisitor
   {
       using VarAccess = std::function<ValueExpr(const json::string&, int)>;
 
-      explicit
-      Calculator(const VarAccess& varAccess)
-      : vars(varAccess), calcres(nullptr)
+      Calculator(const VarAccess& varAccess, std::ostream& out)
+      : vars(varAccess), logger(out), calcres(nullptr)
       {}
 
       void visit(Eq&)          final;
@@ -1971,7 +2035,13 @@ namespace json_logic
 
     private:
       const VarAccess& vars;
+      std::ostream&    logger;
       ValueExpr        calcres;
+
+      Calculator(const Calculator&)            = delete;
+      Calculator(Calculator&&)                 = delete;
+      Calculator& operator=(const Calculator&) = delete;
+      Calculator& operator=(Calculator&&)      = delete;
 
       //
       // opers
@@ -2196,6 +2266,12 @@ namespace json_logic
     reduce(n, Calc<Cat>{});
   }
 
+  void Calculator::visit(In& n)
+  {
+    binary(n, Calc<In>{});
+  }
+
+
   void Calculator::visit(Substr&)         { unsupported(); }
   void Calculator::visit(Array&)          { unsupported(); }
   void Calculator::visit(Map&)            { unsupported(); }
@@ -2205,7 +2281,7 @@ namespace json_logic
   void Calculator::visit(None&)           { unsupported(); }
   void Calculator::visit(Some&)           { unsupported(); }
   void Calculator::visit(Merge&)          { unsupported(); }
-  void Calculator::visit(In&)             { unsupported(); }
+
   void Calculator::visit(Error&)          { unsupported(); }
 
   void Calculator::visit(Var& n)
@@ -2225,10 +2301,14 @@ namespace json_logic
   }
 
 
-  void Calculator::visit(Log&)
+  void Calculator::visit(Log& n)
   {
-    unsupported();
-    //~ std::cerr << *evalstack.arg(1) << std::endl;
+    const int num = n.num_evaluated_operands();
+    assert(num == 1);
+
+    calcres = eval(n.operand(0));
+
+    logger << calcres << std::endl;
   }
 
   void Calculator::visit(NullVal& n)   { _value(n); }
@@ -2245,9 +2325,9 @@ namespace json_logic
     e.accept(trav);
   }
 
-  ValueExpr calculate(ValueExpr& exp, Calculator::VarAccess vars)
+  ValueExpr calculate(ValueExpr& exp, const Calculator::VarAccess& vars)
   {
-    Calculator calc{std::move(vars)};
+    Calculator calc{vars, std::cerr};
 
     assert(exp.get());
     return calc.eval(*exp);

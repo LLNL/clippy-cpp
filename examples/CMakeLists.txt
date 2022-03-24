@@ -36,6 +36,7 @@ add_example(sum)
 add_example(return_tuple)
 add_example(sort_string_edges)
 
+add_subdirectory(jsonvec)
 add_subdirectory(wordcounter)
 add_subdirectory(dataframe)
 add_subdirectory(dataframe-load)
