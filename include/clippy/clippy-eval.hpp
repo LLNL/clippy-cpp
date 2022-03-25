@@ -1129,6 +1129,11 @@ namespace json_logic
     return toBool(*el);
   }
 
+  bool toBool(ValueExpr&& el)
+  {
+    return toBool(*el);
+  }
+
   /// \}
 
 
@@ -2325,7 +2330,7 @@ namespace json_logic
     e.accept(trav);
   }
 
-  ValueExpr calculate(ValueExpr& exp, const Calculator::VarAccess& vars)
+  ValueExpr calculate(AnyExpr& exp, const Calculator::VarAccess& vars)
   {
     Calculator calc{vars, std::cerr};
 
@@ -2333,7 +2338,7 @@ namespace json_logic
     return calc.eval(*exp);
   }
 
-  ValueExpr calculate(ValueExpr& exp)
+  ValueExpr calculate(AnyExpr& exp)
   {
     return calculate(exp, [](const json::string&, int) -> ValueExpr { unsupported(); });
   }

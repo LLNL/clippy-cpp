@@ -9,4 +9,7 @@ add_compile_options(-Wall -Wextra -pedantic)
 
 include_directories(${Boost_INCLUDE_DIRS})
 
-add_example(vector_query)
+add_example(jsonlines-init)
+add_example(jsonlines-importFile)
+add_example(jsonlines-getitem)
+add_example(jsonlines-eval)

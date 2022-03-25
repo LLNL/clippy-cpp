@@ -1,3 +1,0 @@
-{ "and" : [ {">":[{"var":"score"},5]}, 
-            {"==": [{"var":["controversiality"]}, 1]}
-					]}
