@@ -56,7 +56,7 @@ int main(int argc, char** argv)
                                                 return jl::toValueExpr(elem);
                                               }
                                             );
-        if (toBool(val))
+        if (jl::unpackValue<bool>(val))
           chars += ch;
       }
     }

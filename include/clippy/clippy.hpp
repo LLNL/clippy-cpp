@@ -31,7 +31,7 @@ static constexpr bool LOG_JSON = false;
 
 
 namespace clippy {
-  
+
   namespace
   {
     template <class T>
@@ -39,24 +39,24 @@ namespace clippy {
     {
       enum { value = false, };
     };
-    
+
     template <class T, class Alloc>
     struct is_container<std::vector<T, Alloc>>
     {
       enum { value = true, };
     };
-    
+
     boost::json::value
     asContainer(boost::json::value val, bool requiresContainer)
     {
       if (!requiresContainer) return val;
       if (val.is_array()) return val;
-      
+
       boost::json::array res;
-      
+
       res.emplace_back(std::move(val));
       return res;
-    }      
+    }
   }
 
 class clippy {
@@ -68,7 +68,7 @@ class clippy {
 
   /// Makes a method a member of a class \ref className and documentation \ref docString.
   // \todo Shall we also model the module name?
-  //       The Python serialization module has preliminary support for modules, 
+  //       The Python serialization module has preliminary support for modules,
   //       but this is currently not used.
   void member_of(const std::string& className, const std::string& docString) {
     get_value(m_json_config, class_name_key) = className;
@@ -98,7 +98,7 @@ class clippy {
       }
     }
   }
-  
+
   template <class M>
   void log(std::ofstream& logfile, const M& msg) {
     if (LOG_JSON) logfile << msg << std::flush;
@@ -107,7 +107,7 @@ class clippy {
   template <class M>
   void log(const M& msg) {
     if (!LOG_JSON) return;
-    
+
     std::ofstream logfile{"clippy.log", std::ofstream::app};
     log(logfile, msg);
   }
@@ -156,20 +156,20 @@ class clippy {
     // }
     m_json_return = boost::json::value_from(value);
   }
-  
-/*  
+
+/*
   void to_return(clippy::value value) {
     m_json_return = std::move(value);
   }
-*/  
+*/
   void to_return(::clippy::object value) {
     m_json_return = std::move(value).json();
   }
-  
+
   void to_return(::clippy::array value) {
     m_json_return = std::move(value).json();
   }
-  
+
   bool parse(int argc, char **argv) {
     const char *JSON_FLAG = "--clippy-help";
     const char *DRYRUN_FLAG = "--clippy-validate";
@@ -203,13 +203,17 @@ class clippy {
   template <typename T>
   T get(const std::string &name) {
     static constexpr bool requires_container = is_container<T>::value;
-    
+
     if (has_argument(name)) {  // if the argument exists
       return boost::json::value_to<T>(asContainer(get_value(m_json_input, name), requires_container));
     } else {  // it's an optional
       // std::cout << "optional argument found: " + name << std::endl;
       return boost::json::value_to<T>(asContainer(get_value(m_json_config, "args", name, "default_val"), requires_container));
     }
+  }
+
+  bool has_state(const std::string &name) const {
+    return has_value(m_json_input, state_key, name);
   }
 
   template <typename T>
@@ -279,7 +283,7 @@ class clippy {
       if (!j.get_object().contains(name)) { return; }  // Optional, only eval if present
       try {
         static constexpr bool requires_container = is_container<T>::value;
-        
+
         boost::json::value_to<T>(asContainer(get_value(j, name), requires_container));
       } catch (const std::exception &e) {
         std::stringstream ss;
@@ -303,7 +307,7 @@ class clippy {
       }
       try {
         static constexpr bool requires_container = is_container<T>::value;
-        
+
         boost::json::value_to<T>(asContainer(get_value(j, name), requires_container));
       } catch (const std::exception &e) {
         std::stringstream ss;
@@ -342,6 +346,23 @@ class clippy {
 
     m_input_validators[key] = state_validator;
   }
+
+  static constexpr
+  bool has_value(const boost::json::value&) { return true; }
+
+  template <typename ...argts>
+  static
+  bool has_value(const boost::json::value &value,
+                 const std::string &key,
+                 const argts &... inner_keys)
+  {
+    if (const boost::json::object* obj = value.if_object())
+      if (const auto pos = obj->find(key); pos != obj->end())
+        return has_value(pos->value(), inner_keys...);
+
+    return false;
+  }
+
 
 
   static boost::json::value &get_value(boost::json::value &value, const std::string &key) {

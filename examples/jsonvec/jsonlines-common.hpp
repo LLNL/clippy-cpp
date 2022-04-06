@@ -12,7 +12,7 @@ namespace
   const std::string CLASS_NAME = "JsonLines";
   const std::string ST_METALL_LOCATION = "metall_location";
   const std::string ST_SELECTED = "selected";
-  const std::string SELECTOR = "rows";
+  const std::string SELECTOR = "keys";
   // const std::string ST_JSONLINES_KEY  = "dataframe_key";
 }
 

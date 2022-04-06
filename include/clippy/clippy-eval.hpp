@@ -6,6 +6,7 @@
 #include <string>
 #include <limits>
 #include <memory>
+#include <unordered_map>
 
 #include <boost/json.hpp>
 
@@ -19,13 +20,29 @@ namespace json_logic
 
   using JsonExpr = json::value;
 
-  template <class T>
-  T& as(T& n) { return n; }
+  struct Expr;
 
   template <class T>
-  T& deref(T* p)
+  T& up_cast(T& n) { return n; }
+
+  template <class T>
+  T& down_cast(Expr& e);
+
+  struct cast_error : std::runtime_error
   {
-    assert(p);
+    using base = std::runtime_error;
+    using base::base;
+  };
+
+  template <class Error = std::runtime_error, class T>
+  T& deref(T* p, const char* msg = "assertion failed")
+  {
+    if (p == nullptr)
+    {
+      CXX_UNLIKELY;
+      throw Error{msg};
+    }
+
     return *p;
   }
 
@@ -70,11 +87,13 @@ namespace json_logic
     using container_type::crend;
     using container_type::back;
     using container_type::push_back;
+    using container_type::size;
 
-    void set_operands(container_type&& opers)
-    {
-      this->swap(opers);
-    }
+    // convenience function so that the constructor does not need to be implemented
+    // in every derived class.
+    void set_operands(container_type&& opers) { this->swap(opers); }
+
+    container_type& operands() { return *this; }
 
     Expr& operand(int n) const
     {
@@ -352,6 +371,21 @@ namespace json_logic
     void accept(Visitor&) final;
   };
 
+  struct ObjectVal : Expr, private std::map<json::string, AnyExpr>
+  {
+    using base = std::map<json::string, AnyExpr>;
+    using base::base;
+
+    using base::iterator;
+    using base::const_iterator;
+    using base::find;
+    using base::end;
+    using base::insert;
+
+    void accept(Visitor&) final;
+  };
+
+
   // logger
   struct Log       : OperatorN<1>
   {
@@ -477,59 +511,109 @@ namespace json_logic
   struct FwdVisitor : Visitor
   {
     void visit(Expr&)        override {} // error
-    void visit(Operator& n)  override { visit(as<Operator>(n)); }
-    void visit(Eq& n)        override { visit(as<Operator>(n)); }
-    void visit(StrictEq& n)  override { visit(as<Operator>(n)); }
-    void visit(Neq& n)       override { visit(as<Operator>(n)); }
-    void visit(StrictNeq& n) override { visit(as<Operator>(n)); }
-    void visit(Less& n)      override { visit(as<Operator>(n)); }
-    void visit(Greater& n)   override { visit(as<Operator>(n)); }
-    void visit(Leq& n)       override { visit(as<Operator>(n)); }
-    void visit(Geq& n)       override { visit(as<Operator>(n)); }
-    void visit(And& n)       override { visit(as<Operator>(n)); }
-    void visit(Or& n)        override { visit(as<Operator>(n)); }
-    void visit(Not& n)       override { visit(as<Operator>(n)); }
-    void visit(NotNot& n)    override { visit(as<Operator>(n)); }
-    void visit(Add& n)       override { visit(as<Operator>(n)); }
-    void visit(Sub& n)       override { visit(as<Operator>(n)); }
-    void visit(Mul& n)       override { visit(as<Operator>(n)); }
-    void visit(Div& n)       override { visit(as<Operator>(n)); }
-    void visit(Mod& n)       override { visit(as<Operator>(n)); }
-    void visit(Min& n)       override { visit(as<Operator>(n)); }
-    void visit(Max& n)       override { visit(as<Operator>(n)); }
-    void visit(Map& n)       override { visit(as<Operator>(n)); }
-    void visit(Reduce& n)    override { visit(as<Operator>(n)); }
-    void visit(Filter& n)    override { visit(as<Operator>(n)); }
-    void visit(All& n)       override { visit(as<Operator>(n)); }
-    void visit(None& n)      override { visit(as<Operator>(n)); }
-    void visit(Some& n)      override { visit(as<Operator>(n)); }
-    void visit(Array& n)     override { visit(as<Operator>(n)); }
-    void visit(Merge& n)     override { visit(as<Operator>(n)); }
-    void visit(Cat& n)       override { visit(as<Operator>(n)); }
-    void visit(Substr& n)    override { visit(as<Operator>(n)); }
-    void visit(In& n)        override { visit(as<Operator>(n)); }
-    void visit(Var& n)       override { visit(as<Operator>(n)); }
-    void visit(Log& n)       override { visit(as<Operator>(n)); }
+    void visit(Operator& n)  override { visit(up_cast<Operator>(n)); }
+    void visit(Eq& n)        override { visit(up_cast<Operator>(n)); }
+    void visit(StrictEq& n)  override { visit(up_cast<Operator>(n)); }
+    void visit(Neq& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(StrictNeq& n) override { visit(up_cast<Operator>(n)); }
+    void visit(Less& n)      override { visit(up_cast<Operator>(n)); }
+    void visit(Greater& n)   override { visit(up_cast<Operator>(n)); }
+    void visit(Leq& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Geq& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(And& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Or& n)        override { visit(up_cast<Operator>(n)); }
+    void visit(Not& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(NotNot& n)    override { visit(up_cast<Operator>(n)); }
+    void visit(Add& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Sub& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Mul& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Div& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Mod& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Min& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Max& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Map& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Reduce& n)    override { visit(up_cast<Operator>(n)); }
+    void visit(Filter& n)    override { visit(up_cast<Operator>(n)); }
+    void visit(All& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(None& n)      override { visit(up_cast<Operator>(n)); }
+    void visit(Some& n)      override { visit(up_cast<Operator>(n)); }
+    void visit(Array& n)     override { visit(up_cast<Operator>(n)); }
+    void visit(Merge& n)     override { visit(up_cast<Operator>(n)); }
+    void visit(Cat& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Substr& n)    override { visit(up_cast<Operator>(n)); }
+    void visit(In& n)        override { visit(up_cast<Operator>(n)); }
+    void visit(Var& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Log& n)       override { visit(up_cast<Operator>(n)); }
 
-    void visit(If& n)        override { visit(as<Expr>(n)); }
+    void visit(If& n)        override { visit(up_cast<Expr>(n)); }
 
-    void visit(NullVal& n)   override { visit(as<Expr>(n)); }
-    void visit(BoolVal& n)   override { visit(as<Expr>(n)); }
-    void visit(IntVal& n)    override { visit(as<Expr>(n)); }
-    void visit(UintVal& n)   override { visit(as<Expr>(n)); }
-    void visit(DoubleVal& n) override { visit(as<Expr>(n)); }
-    void visit(StringVal& n) override { visit(as<Expr>(n)); }
+    void visit(NullVal& n)   override { visit(up_cast<Expr>(n)); }
+    void visit(BoolVal& n)   override { visit(up_cast<Expr>(n)); }
+    void visit(IntVal& n)    override { visit(up_cast<Expr>(n)); }
+    void visit(UintVal& n)   override { visit(up_cast<Expr>(n)); }
+    void visit(DoubleVal& n) override { visit(up_cast<Expr>(n)); }
+    void visit(StringVal& n) override { visit(up_cast<Expr>(n)); }
 
-    void visit(Error& n)     override { visit(as<Expr>(n)); }
+    void visit(Error& n)     override { visit(up_cast<Expr>(n)); }
   };
 
-  /// AST traversal function that calls v's visit methods in post-fix order
-  void traverseInSAttributeOrder(Expr& e, Visitor& vis);
+  template <class UnderVisitorT>
+  struct GVisitor : FwdVisitor
+  {
+      explicit
+      GVisitor(UnderVisitorT& selfref)
+      : self(selfref)
+      {}
 
-  /// traverses the children of a node; does not traverse grandchildren
-  void traverseChildren(Visitor& v, const Operator& node);
-  void traverseAllChildren(Visitor& v, const Operator& node);
-  void traverseChildrenReverse(Visitor& v, const Operator& node);
+      // list of all concrete types
+      void visit(Eq& n)        final { self.gvisit(n); }
+      void visit(StrictEq& n)  final { self.gvisit(n); }
+      void visit(Neq& n)       final { self.gvisit(n); }
+      void visit(StrictNeq& n) final { self.gvisit(n); }
+      void visit(Less& n)      final { self.gvisit(n); }
+      void visit(Greater& n)   final { self.gvisit(n); }
+      void visit(Leq& n)       final { self.gvisit(n); }
+      void visit(Geq& n)       final { self.gvisit(n); }
+      void visit(And& n)       final { self.gvisit(n); }
+      void visit(Or& n)        final { self.gvisit(n); }
+      void visit(Not& n)       final { self.gvisit(n); }
+      void visit(NotNot& n)    final { self.gvisit(n); }
+      void visit(Add& n)       final { self.gvisit(n); }
+      void visit(Sub& n)       final { self.gvisit(n); }
+      void visit(Mul& n)       final { self.gvisit(n); }
+      void visit(Div& n)       final { self.gvisit(n); }
+      void visit(Mod& n)       final { self.gvisit(n); }
+      void visit(Min& n)       final { self.gvisit(n); }
+      void visit(Max& n)       final { self.gvisit(n); }
+      void visit(Map& n)       final { self.gvisit(n); }
+      void visit(Reduce& n)    final { self.gvisit(n); }
+      void visit(Filter& n)    final { self.gvisit(n); }
+      void visit(All& n)       final { self.gvisit(n); }
+      void visit(None& n)      final { self.gvisit(n); }
+      void visit(Some& n)      final { self.gvisit(n); }
+      void visit(Array& n)     final { self.gvisit(n); }
+      void visit(Merge& n)     final { self.gvisit(n); }
+      void visit(Cat& n)       final { self.gvisit(n); }
+      void visit(Substr& n)    final { self.gvisit(n); }
+      void visit(In& n)        final { self.gvisit(n); }
+      void visit(Var& n)       final { self.gvisit(n); }
+      void visit(Log& n)       final { self.gvisit(n); }
+
+      void visit(If& n)        final { self.gvisit(n); }
+
+      void visit(NullVal& n)   final { self.gvisit(n); }
+      void visit(BoolVal& n)   final { self.gvisit(n); }
+      void visit(IntVal& n)    final { self.gvisit(n); }
+      void visit(UintVal& n)   final { self.gvisit(n); }
+      void visit(DoubleVal& n) final { self.gvisit(n); }
+      void visit(StringVal& n) final { self.gvisit(n); }
+
+      void visit(Error& n)     final { self.gvisit(n); }
+
+    private:
+      UnderVisitorT& self;
+  };
+
 
   namespace
   {
@@ -560,23 +644,23 @@ namespace json_logic
 
     void VarMap::insert(Var& var)
     {
-      AnyExpr&   arg = var.back();
-      StringVal* str = dynamic_cast<StringVal*>(arg.get());
-
-      if (str == nullptr)
+      try
       {
-        CXX_UNLIKELY;
-        hasComputed = true;
-        return;
+        AnyExpr&   arg = var.back();
+        StringVal& str = down_cast<StringVal>(*arg);
+
+        // do nothing for free variables in "lambdas"
+        if (str.value() != "")
+        {
+          auto [pos, success] = mapping.emplace(str.value(), mapping.size());
+
+          var.num(pos->second);
+        }
       }
-
-      // do nothing for free variables in "lambdas"
-      if (str->value() == "")
-        return;
-
-      auto [pos, success] = mapping.emplace(str->value(), mapping.size());
-
-      var.num(pos->second);
+      catch (const cast_error&)
+      {
+        hasComputed = true;
+      }
     }
 
     std::vector<json::string>
@@ -695,7 +779,7 @@ namespace json_logic
               res = &pos->second(obj, varmap);
 
               if (pos->second == mkOperator<Var>)
-                varmap.insert(dynamic_cast<Var&>(*res));
+                varmap.insert(down_cast<Var>(*res));
             }
             else
             {
@@ -796,164 +880,6 @@ namespace json_logic
     }
   }
 
-  // only operators have children
-  void _traverseChildren(Visitor& v, Operator::const_iterator aa, Operator::const_iterator zz)
-  {
-    std::for_each( aa, zz,
-                   [&v](const AnyExpr& e) -> void
-                   {
-                     e->accept(v);
-                   }
-                 );
-  }
-
-  void traverseChildren(Visitor& v, const Operator& node)
-  {
-    Operator::const_iterator aa = node.begin();
-
-    _traverseChildren(v, aa, aa + node.num_evaluated_operands());
-  }
-
-  void traverseAllChildren(Visitor& v, const Operator& node)
-  {
-    _traverseChildren(v, node.begin(), node.end());
-  }
-
-  void traverseChildrenReverse(Visitor& v, const Operator& node)
-  {
-    Operator::const_reverse_iterator zz = node.crend();
-    Operator::const_reverse_iterator aa = zz - node.num_evaluated_operands();
-
-    std::for_each( aa, zz,
-                   [&v](const AnyExpr& e) -> void
-                   {
-                     e->accept(v);
-                   }
-                 );
-  }
-
-
-  namespace
-  {
-    struct SAttributeTraversal : Visitor
-    {
-        explicit
-        SAttributeTraversal(Visitor& client)
-        : sub(client)
-        {}
-
-        void visit(Expr&)        final;
-        void visit(Operator&)    final;
-        void visit(Eq&)          final;
-        void visit(StrictEq&)    final;
-        void visit(Neq&)         final;
-        void visit(StrictNeq&)   final;
-        void visit(Less&)        final;
-        void visit(Greater&)     final;
-        void visit(Leq&)         final;
-        void visit(Geq&)         final;
-        void visit(And&)         final;
-        void visit(Or&)          final;
-        void visit(Not&)         final;
-        void visit(NotNot&)      final;
-        void visit(Add&)         final;
-        void visit(Sub&)         final;
-        void visit(Mul&)         final;
-        void visit(Div&)         final;
-        void visit(Mod&)         final;
-        void visit(Min&)         final;
-        void visit(Max&)         final;
-        void visit(Map&)         final;
-        void visit(Reduce&)      final;
-        void visit(Filter&)      final;
-        void visit(All&)         final;
-        void visit(None&)        final;
-        void visit(Some&)        final;
-        void visit(Merge&)       final;
-        void visit(Cat&)         final;
-        void visit(Substr&)      final;
-        void visit(In&)          final;
-        void visit(Array& n)     final;
-        void visit(Var&)         final;
-        void visit(Log&)         final;
-
-        void visit(If&)          final;
-
-        void visit(NullVal& n)   final;
-        void visit(BoolVal& n)   final;
-        void visit(IntVal& n)    final;
-        void visit(UintVal& n)   final;
-        void visit(DoubleVal& n) final;
-        void visit(StringVal& n) final;
-
-        void visit(Error& n)     final;
-
-      private:
-        Visitor& sub;
-
-        template <class OperatorNode>
-        inline
-        void _visit(OperatorNode& n)
-        {
-          traverseChildren(*this, n);
-          sub.visit(n);
-        }
-
-        template <class ValueNode>
-        inline
-        void _value(ValueNode& n)
-        {
-          sub.visit(n);
-        }
-    };
-
-    void SAttributeTraversal::visit(Expr&)           { typeError();    }
-    void SAttributeTraversal::visit(Operator&)       { typeError();    }
-    void SAttributeTraversal::visit(Eq& n)           { _visit(n); }
-    void SAttributeTraversal::visit(StrictEq& n)     { _visit(n); }
-    void SAttributeTraversal::visit(Neq& n)          { _visit(n); }
-    void SAttributeTraversal::visit(StrictNeq& n)    { _visit(n); }
-    void SAttributeTraversal::visit(Less& n)         { _visit(n); }
-    void SAttributeTraversal::visit(Greater& n)      { _visit(n); }
-    void SAttributeTraversal::visit(Leq& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Geq& n)          { _visit(n); }
-    void SAttributeTraversal::visit(And& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Or& n)           { _visit(n); }
-    void SAttributeTraversal::visit(Not& n)          { _visit(n); }
-    void SAttributeTraversal::visit(NotNot& n)       { _visit(n); }
-    void SAttributeTraversal::visit(Add& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Sub& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Mul& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Div& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Mod& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Min& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Max& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Array& n)        { _visit(n); }
-    void SAttributeTraversal::visit(Map& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Reduce& n)       { _visit(n); }
-    void SAttributeTraversal::visit(Filter& n)       { _visit(n); }
-    void SAttributeTraversal::visit(All& n)          { _visit(n); }
-    void SAttributeTraversal::visit(None& n)         { _visit(n); }
-    void SAttributeTraversal::visit(Some& n)         { _visit(n); }
-    void SAttributeTraversal::visit(Merge& n)        { _visit(n); }
-    void SAttributeTraversal::visit(Cat& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Substr& n)       { _visit(n); }
-    void SAttributeTraversal::visit(In& n)           { _visit(n); }
-    void SAttributeTraversal::visit(Var& n)          { _visit(n); }
-    void SAttributeTraversal::visit(Log& n)          { _visit(n); }
-
-    void SAttributeTraversal::visit(If& n)           { _visit(n); }
-
-    void SAttributeTraversal::visit(NullVal& n)      { _value(n); }
-    void SAttributeTraversal::visit(BoolVal& n)      { _value(n); }
-    void SAttributeTraversal::visit(IntVal& n)       { _value(n); }
-    void SAttributeTraversal::visit(UintVal& n)      { _value(n); }
-    void SAttributeTraversal::visit(DoubleVal& n)    { _value(n); }
-    void SAttributeTraversal::visit(StringVal& n)    { _value(n); }
-
-    void SAttributeTraversal::visit(Error& n)        { sub.visit(n); }
-  }
-
   using ValueExpr = std::unique_ptr<Expr>; // could be value if we have a type for that
 
   std::ostream& operator<<(std::ostream& os, ValueExpr& n);
@@ -1020,119 +946,91 @@ namespace json_logic
   //
   // coercion functions
 
-  std::int64_t toInt(const json::string& str)
+  std::int64_t toConcreteValue(const json::string& str, const std::int64_t&)
   {
     return std::stoi(std::string{str.c_str()});
   }
 
-  std::int64_t toInt(double d)
+  std::int64_t toConcreteValue(double d, const std::int64_t&)
   {
     return d;
   }
 
-  std::int64_t toInt(bool b)
+  std::int64_t toConcreteValue(bool b, const std::int64_t&)
   {
     return b;
   }
 
-  std::int64_t toInt(std::uint64_t v)
+  std::int64_t toConcreteValue(std::uint64_t v, const std::int64_t&)
   {
     return v;
   }
 
-  std::uint64_t toUint(const json::string& str)
+
+  std::uint64_t toConcreteValue(const json::string& str, const std::uint64_t&)
   {
     return std::stoull(std::string{str.c_str()});
   }
 
-  std::uint64_t toUint(double d)
+  std::uint64_t toConcreteValue(double d, const std::uint64_t&)
   {
     return d;
   }
 
-  std::uint64_t toUint(std::int64_t v)
+  std::uint64_t toConcreteValue(std::int64_t v, const std::uint64_t&)
   {
     return v;
   }
 
-  std::uint64_t toUint(bool b)
+  std::uint64_t toConcreteValue(bool b, const std::uint64_t&)
   {
     return b;
   }
 
-  double toDouble(const json::string& str)
+
+  double toConcreteValue(const json::string& str, const double&)
   {
     return std::stod(std::string{str.c_str()});
   }
 
-  double toDouble(std::int64_t val)
+  double toConcreteValue(std::int64_t val, const double&)
   {
     return val;
   }
 
-  double toDouble(std::uint64_t val)
+  double toConcreteValue(std::uint64_t val, const double&)
   {
     return val;
   }
 
 
   template <class Val>
-  json::string toString(Val v)
+  json::string toConcreteValue(Val v, const json::string&)
   {
     return json::string{std::to_string(v)};
   }
 
-  json::string toString(bool b)
+  json::string toConcreteValue(bool b, const json::string&)
   {
     return json::string{b ? "true" : "false"};
   }
 
-  json::string toString(std::nullptr_t)
+  json::string toConcreteValue(std::nullptr_t, const json::string&)
   {
     return json::string{"null"};
   }
 
+
+
+
   /// conversion to boolean
   /// \{
 
-  bool toBool(std::int64_t v)        { return v; }
-  bool toBool(std::uint64_t v)       { return v; }
-  bool toBool(double v)              { return v; }
-  bool toBool(const json::string& v) { return v.size() != 0; }
-  bool toBool(Array& v)              { return v.num_evaluated_operands(); }
-
-  bool toBool(Expr& e)
-  {
-    struct BoolConverter : FwdVisitor
-    {
-      void visit(Expr&)        final { typeError(); }
-
-      void visit(NullVal&)     final { res = false; }
-      void visit(BoolVal& n)   final { res = n.value(); }
-      void visit(IntVal& n)    final { res = toBool(n.value()); }
-      void visit(UintVal& n)   final { res = toBool(n.value()); }
-      void visit(DoubleVal& n) final { res = toBool(n.value()); }
-      void visit(StringVal& n) final { res = toBool(n.value()); }
-      void visit(Array& n)     final { res = toBool(n); }
-
-      bool res;
-    };
-
-    BoolConverter conv;
-
-    e.accept(conv);
-    return conv.res;
-  }
-
-  bool toBool(ValueExpr& el)
-  {
-    return toBool(*el);
-  }
-
-  bool toBool(ValueExpr&& el)
-  {
-    return toBool(*el);
-  }
+  bool toConcreteValue(std::int64_t v, const bool&)        { return v; }
+  bool toConcreteValue(std::uint64_t v, const bool&)       { return v; }
+  bool toConcreteValue(double v, const bool&)              { return v; }
+  bool toConcreteValue(const json::string& v, const bool&) { return v.size() != 0; }
+  bool toConcreteValue(Array& v, const bool&)              { return v.num_evaluated_operands(); }
 
   /// \}
 
@@ -1145,7 +1043,8 @@ namespace json_logic
       definedForDouble  = true,
       definedForInteger = true,
       definedForBool    = false,
-      definedForNull    = false
+      definedForNull    = false,
+      definedForArray   = false
     };
 
     using result_type   = bool;
@@ -1175,19 +1074,19 @@ namespace json_logic
     std::tuple<double, double>
     coerce(double* lv, std::int64_t* rv)
     {
-      return std::make_tuple(*lv, toDouble(*rv));
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
     }
 
     std::tuple<double, double>
     coerce(double* lv, std::uint64_t* rv)
     {
-      return std::make_tuple(*lv, toDouble(*rv));
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
     }
 
     std::tuple<double, double>
     coerce(std::int64_t* lv, double* rv)
     {
-      return std::make_tuple(toDouble(*lv), *rv);
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
     }
 
     std::tuple<std::int64_t, std::int64_t>
@@ -1199,19 +1098,19 @@ namespace json_logic
     std::tuple<std::int64_t, std::int64_t>
     coerce(std::int64_t* lv, std::uint64_t* rv)
     {
-      return std::make_tuple(*lv, toInt(*rv));
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
     }
 
     std::tuple<double, double>
     coerce(std::uint64_t* lv, double* rv)
     {
-      return std::make_tuple(toDouble(*lv), *rv);
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
     }
 
     std::tuple<std::int64_t, std::int64_t>
     coerce(std::uint64_t* lv, std::int64_t* rv)
     {
-      return std::make_tuple(toInt(*lv), *rv);
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
     }
 
     std::tuple<std::uint64_t, std::uint64_t>
@@ -1232,37 +1131,37 @@ namespace json_logic
     std::tuple<double, double>
     coerce(double* lv, json::string* rv)
     {
-      return std::make_tuple(*lv, toDouble(*rv));
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
     }
 
     std::tuple<std::int64_t, std::int64_t>
     coerce(std::int64_t* lv, json::string* rv)
     {
-      return std::make_tuple(*lv, toInt(*rv));
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
     }
 
     std::tuple<std::uint64_t, std::uint64_t>
     coerce(std::uint64_t* lv, json::string* rv)
     {
-      return std::make_tuple(*lv, toUint(*rv));
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
     }
 
     std::tuple<double, double>
     coerce(json::string* lv, double* rv)
     {
-      return std::make_tuple(toDouble(*lv), *rv);
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
     }
 
     std::tuple<std::int64_t, std::int64_t>
     coerce(json::string* lv, std::int64_t* rv)
     {
-      return std::make_tuple(toInt(*lv), *rv);
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
     }
 
     std::tuple<std::uint64_t, std::uint64_t>
     coerce(json::string* lv, std::uint64_t* rv)
     {
-      return std::make_tuple(toInt(*lv), *rv);
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
     }
 
     std::tuple<json::string, json::string>
@@ -1282,7 +1181,8 @@ namespace json_logic
       definedForDouble  = true,
       definedForInteger = true,
       definedForBool    = false,
-      definedForNull    = true
+      definedForNull    = true,
+      definedForArray   = false
     };
 
     using result_type = ValueExpr;
@@ -1340,7 +1240,8 @@ namespace json_logic
       definedForDouble  = false,
       definedForInteger = true,
       definedForBool    = false,
-      definedForNull    = false
+      definedForNull    = false,
+      definedForArray   = false
     };
 
     using ArithmeticOperator::coerce;
@@ -1354,7 +1255,8 @@ namespace json_logic
       definedForDouble  = false,
       definedForInteger = false,
       definedForBool    = false,
-      definedForNull    = false
+      definedForNull    = false,
+      definedForArray   = false
     };
 
     using result_type = ValueExpr;
@@ -1365,6 +1267,28 @@ namespace json_logic
       return std::make_tuple(std::move(*lv), std::move(*rv));
     }
   };
+
+  struct ArrayOperator
+  {
+    enum
+    {
+      definedForString  = false,
+      definedForDouble  = false,
+      definedForInteger = false,
+      definedForBool    = false,
+      definedForNull    = false,
+      definedForArray   = true
+    };
+
+    using result_type = ValueExpr;
+
+    std::tuple<Array*, Array*>
+    coerce(Array* lv, Array* rv)
+    {
+      return std::make_tuple(lv, rv);
+    }
+  };
+
 
 
   AnyExpr convert(AnyExpr val, ...)
@@ -1393,8 +1317,8 @@ namespace json_logic
         // need to convert values
         void visit(StringVal& el) final
         {
-          double  dd = toDouble(el.value());
-          int64_t ii = toInt(el.value());
+          double       dd = toConcreteValue(el.value(), double{});
+          std::int64_t ii = toConcreteValue(el.value(), std::int64_t{});
           // uint?
 
           res = (dd != ii) ? toValueExpr(dd) : toValueExpr(ii);
@@ -1436,22 +1360,22 @@ namespace json_logic
         // need to convert values
         void visit(StringVal& el) final
         {
-          res = toValueExpr(toInt(el.value()));
+          res = toValueExpr(toConcreteValue(el.value(), std::int64_t{}));
         }
 
         void visit(BoolVal& el) final
         {
-          res = toValueExpr(toInt(el.value()));
+          res = toValueExpr(toConcreteValue(el.value(), std::int64_t{}));
         }
 
         void visit(DoubleVal& el) final
         {
-          res = toValueExpr(toInt(el.value()));
+          res = toValueExpr(toConcreteValue(el.value(), std::int64_t{}));
         }
 
         void visit(NullVal&)      final
         {
-          res = toValueExpr(std::int64_t(0));
+          res = toValueExpr(std::int64_t{0});
         }
 
         AnyExpr result() && { return std::move(res); }
@@ -1485,27 +1409,27 @@ namespace json_logic
         // need to convert values
         void visit(BoolVal& el) final
         {
-          res = toValueExpr(toString(el.value()));
+          res = toValueExpr(toConcreteValue(el.value(), json::string{}));
         }
 
         void visit(IntVal& el)    final
         {
-          res = toValueExpr(toString(el.value()));
+          res = toValueExpr(toConcreteValue(el.value(), json::string{}));
         }
 
         void visit(UintVal& el)   final
         {
-          res = toValueExpr(toString(el.value()));
+          res = toValueExpr(toConcreteValue(el.value(), json::string{}));
         }
 
         void visit(DoubleVal& el) final
         {
-          res = toValueExpr(toString(el.value()));
+          res = toValueExpr(toConcreteValue(el.value(), json::string{}));
         }
 
         void visit(NullVal& el)      final
         {
-          res = toValueExpr(toString(el.value()));
+          res = toValueExpr(toConcreteValue(el.value(), json::string{}));
         }
 
         AnyExpr result() && { return std::move(res); }
@@ -1521,6 +1445,207 @@ namespace json_logic
     return std::move(conv).result();
   }
 
+  AnyExpr convert(AnyExpr val, const ArrayOperator&)
+  {
+    struct ArrayConverter : FwdVisitor
+    {
+        explicit
+        ArrayConverter(AnyExpr val)
+        : val(std::move(val))
+        {}
+
+        void visit(Expr&)         final { typeError(); }
+
+        // moves res into
+        void toArray()
+        {
+          Array&                   arr = deref(new Array);
+          Operator::container_type operands;
+
+          operands.emplace_back(&arr);
+
+          // swap the operand and result
+          std::swap(operands.back(), val);
+
+          // then set the operands
+          arr.set_operands(std::move(operands));
+        }
+
+        // defined for the following types
+        void visit(Array&)     final {}
+
+        // need to move value to new array
+        void visit(StringVal&) final { toArray(); }
+        void visit(BoolVal&)   final { toArray(); }
+        void visit(IntVal&)    final { toArray(); }
+        void visit(UintVal&)   final { toArray(); }
+        void visit(DoubleVal&) final { toArray(); }
+        void visit(NullVal&)   final { toArray(); }
+
+        AnyExpr result() && { return std::move(val); }
+
+      private:
+        AnyExpr val;
+    };
+
+    Expr*          node = val.get();
+    ArrayConverter conv{std::move(val)};
+
+    node->accept(conv);
+    return std::move(conv).result();
+  }
+
+
+  template <class ValueT>
+  struct UnpackVisitor : FwdVisitor
+  {
+      UnpackVisitor()
+      : res()
+      {}
+
+      void assign(ValueT& lhs, const ValueT& val) { lhs = val; }
+
+      template <class U>
+      void assign(ValueT& lhs, const U& val)
+      {
+        lhs = toConcreteValue(val, lhs);
+      }
+
+      void visit(Expr&) final { typeError(); }
+
+      // defined for the following types
+      void visit(StringVal& el)  final
+      {
+        assign(res, el.value());
+      }
+
+      // need to convert values
+      void visit(BoolVal& el) final
+      {
+        assign(res, el.value());
+      }
+
+      void visit(IntVal& el)    final
+      {
+        assign(res, el.value());
+      }
+
+      void visit(UintVal& el)   final
+      {
+        assign(res, el.value());
+      }
+
+      void visit(DoubleVal& el) final
+      {
+        assign(res, el.value());
+      }
+
+      void visit(NullVal& el)      final
+      {
+        assign(res, el.value());
+      }
+
+      ValueT result() && { return std::move(res); }
+
+    private:
+      ValueT res;
+  };
+
+
+  template <class T>
+  T unpackValue(Expr& expr)
+  {
+    UnpackVisitor<T> unpack;
+
+    expr.accept(unpack);
+    return std::move(unpack).result();
+  }
+
+
+
+/*
+  bool toBool(Expr& e)
+  {
+    struct BoolConverter : FwdVisitor
+    {
+      void visit(Expr&)        final { typeError(); }
+
+      void visit(NullVal&)     final { res = false; }
+      void visit(BoolVal& n)   final { res = n.value(); }
+      void visit(IntVal& n)    final { res = toConcreteValue(n.value(), bool{}); }
+      void visit(UintVal& n)   final { res = toConcreteValue(n.value(), bool{}); }
+      void visit(DoubleVal& n) final { res = toConcreteValue(n.value(), bool{}); }
+      void visit(StringVal& n) final { res = toConcreteValue(n.value(), bool{}); }
+      void visit(Array& n)     final { res = toConcreteValue(n, bool{}); }
+
+      bool res;
+    };
+
+    BoolConverter conv;
+
+    e.accept(conv);
+    return conv.res;
+  }
+*/
+
+  template <class T>
+  T unpackValue(ValueExpr& el)
+  {
+    return unpackValue<T>(*el);
+  }
+
+  template <class T>
+  T unpackValue(ValueExpr&& el)
+  {
+    return unpackValue<T>(*el);
+  }
+
+  template <class T>
+  bool toBool(ValueExpr& el)
+  {
+    return unpackValue<bool>(el);
+  }
+
+  template <class T>
+  bool toBool(ValueExpr&& el)
+  {
+    return unpackValue<bool>(el);
+  }
+
+  template <class ExprT>
+  struct DownCastVisitor : GVisitor<DownCastVisitor<ExprT> >
+  {
+      using base = GVisitor<DownCastVisitor<ExprT> >;
+
+      DownCastVisitor()
+      : base(*this), res(nullptr)
+      {}
+
+      void gvisit(Expr&)    { /* not found */ }
+
+      void gvisit(ExprT& n) { res = &n; }
+
+      ExprT& result() { return deref<cast_error>(res); }
+
+    private:
+      ExprT* res;
+  };
+
+
+  template <class ExprT>
+  ExprT& down_cast(Expr& expr)
+  {
+    DownCastVisitor<ExprT> vis;
+
+    expr.accept(vis);
+    return vis.result();
+  }
+
+
+
+
+
+
   template <class BinaryOperator, class LhsValue>
   struct BinaryOperatorVisitor_ : FwdVisitor
   {
@@ -1535,7 +1660,7 @@ namespace json_logic
       {
         auto [ll, rr] = op.coerce(lv, rv);
 
-        res = op(ll, rr);
+        res = op(std::move(ll), std::move(rr));
       }
 
       void visit(Expr&) final { typeError(); }
@@ -1588,9 +1713,12 @@ namespace json_logic
         typeError();
       }
 
-      void visit(Array&) final
+      void visit(Array& n) final
       {
-        unsupported(); // for now
+        if constexpr (BinaryOperator::definedForArray)
+          return calc(&n);
+
+        typeError();
       }
 
       result_type result() && { return std::move(res); }
@@ -1669,9 +1797,12 @@ namespace json_logic
         typeError();
       }
 
-      void visit(Array&) final
+      void visit(Array& n) final
       {
-        typeError(); // for now
+        if constexpr (BinaryOperator::definedForArray)
+          return calc(&n);
+
+        typeError();
       }
 
       result_type result() && { return std::move(res); }
@@ -1936,7 +2067,7 @@ namespace json_logic
     result_type
     operator()(Expr& val) const
     {
-      return !toBool(val);
+      return !unpackValue<bool>(val);
     }
   };
 
@@ -1948,7 +2079,7 @@ namespace json_logic
     result_type
     operator()(Expr& val) const
     {
-      return toBool(val);
+      return unpackValue<bool>(val);
     }
   };
 
@@ -1979,19 +2110,46 @@ namespace json_logic
     result_type
     operator()(const json::string& lhs, const json::string& rhs) const
     {
-      bool res = (lhs.find(rhs) != json::string::npos);
+      const bool res = (lhs.find(rhs) != json::string::npos);
 
-      return toValueExpr(std::move(res));
+      return toValueExpr(res);
     }
   };
 
+  template <>
+  struct Calc<Merge> : ArrayOperator
+  {
+    using ArrayOperator::result_type;
+
+    result_type
+    operator()(Array* lhs, Array* rhs) const
+    {
+      // note, to use the lhs entirely, it would need to be released
+      //   from its  ValueExpr
+      Array& res = deref(new Array);
+
+      {
+        Operator::container_type& opers = res.operands();
+
+        opers.swap(lhs->operands());
+
+        Operator::container_type& ropers = rhs->operands();
+
+        opers.insert( opers.end(),
+                      std::make_move_iterator(ropers.begin()), std::make_move_iterator(ropers.end())
+                    );
+      }
+
+      return ValueExpr(&res);
+    }
+  };
 
   struct Calculator : FwdVisitor
   {
       using VarAccess = std::function<ValueExpr(const json::string&, int)>;
 
-      Calculator(const VarAccess& varAccess, std::ostream& out)
-      : vars(varAccess), logger(out), calcres(nullptr)
+      Calculator(VarAccess varAccess, std::ostream& out)
+      : vars(std::move(varAccess)), logger(out), calcres(nullptr)
       {}
 
       void visit(Eq&)          final;
@@ -2039,9 +2197,9 @@ namespace json_logic
       ValueExpr eval(Expr& n);
 
     private:
-      const VarAccess& vars;
-      std::ostream&    logger;
-      ValueExpr        calcres;
+      VarAccess       vars;
+      std::ostream&   logger;
+      ValueExpr       calcres;
 
       Calculator(const Calculator&)            = delete;
       Calculator(Calculator&&)                 = delete;
@@ -2051,108 +2209,28 @@ namespace json_logic
       //
       // opers
 
-      /// implements relop : [1, 2, 3, whatever]
+      /// implements relop : [1, 2, 3, whatever] as 1 relop 2 relop 3
       template <class BinaryPredicate>
-      void evalPairShortCircuit(Operator& n, BinaryPredicate calc)
-      {
-        const int      num = n.num_evaluated_operands();
-        assert(num >= 2);
+      void evalPairShortCircuit(Operator& n, BinaryPredicate pred);
 
-        bool           res = true;
-        int            idx = -1;
-        ValueExpr      rhs = eval(n.operand(++idx));
-        assert(rhs.get());
+      /// returns the first expression in [ e1, e2, e3 ] that evaluates to val, or the last expression otherwise
+      void evalShortCircuit(Operator& n, bool val);
 
-        while (res && (idx != (num-1)))
-        {
-          ValueExpr    lhs = std::move(rhs);
-          assert(lhs.get());
-
-          rhs = eval(n.operand(++idx));
-          assert(rhs.get());
-
-          res = compute(lhs, rhs, calc);
-        }
-
-        calcres = toValueExpr(res);
-      }
-
+      /// reduction operation on all elements
       template <class BinaryOperator>
-      void reduce(Operator& n, BinaryOperator op)
-      {
-        const int      num = n.num_evaluated_operands();
-        assert(num >= 1);
+      void reduce(Operator& n, BinaryOperator op);
 
-        int            idx = -1;
-        ValueExpr      res = eval(n.operand(++idx));
-
-        res = convert(std::move(res), op);
-
-        while (idx != (num-1))
-        {
-          ValueExpr rhs = eval(n.operand(++idx));
-
-          rhs = convert(std::move(rhs), op);
-          res = compute(res, rhs, op);
-        }
-
-        calcres = std::move(res);
-      }
-
-      template <class BinaryOperator>
-      void binary(Operator& n, BinaryOperator calc)
-      {
-        const int num = n.num_evaluated_operands();
-        assert(num == 1 || num == 2);
-
-        int       idx = -1;
-        ValueExpr lhs;
-
-        if (num == 2)
-        {
-          CXX_LIKELY;
-          lhs = eval(n.operand(++idx));
-        }
-        else
-        {
-          lhs = toValueExpr(std::int64_t(0));
-        }
-
-        ValueExpr rhs = eval(n.operand(++idx));
-
-        calcres = compute(lhs, rhs, calc);
-      }
-
+      /// computes unary operation on n[0]
       template <class UnaryOperator>
-      void unary(Operator& n, UnaryOperator calc)
-      {
-        const int  num = n.num_evaluated_operands();
-        assert(num == 1);
+      void unary(Operator& n, UnaryOperator calc);
 
-        const bool res = calc(*eval(n.operand(0)));
+      /// binary operation on all elements (invents an element if none is present)
+      template <class BinaryOperator>
+      void binary(Operator& n, BinaryOperator binop);
 
-        calcres = toValueExpr(res);
-      }
-
-      void evalShortCircuit(Operator& n, bool val)
-      {
-        const int      num = n.num_evaluated_operands();
-        assert(num >= 1);
-
-        int            idx   = -1;
-        ValueExpr      oper  = eval(n.operand(++idx));
-        bool           found = (idx == num-1) || (toBool(*oper) == val);
-
-        // loop until *aa == val or when *aa is the last valid element
-        while (!found)
-        {
-          oper = eval(n.operand(++idx));
-
-          found = (idx == (num-1)) || (toBool(*oper) == val);
-        }
-
-        calcres = std::move(oper);
-      }
+      /// evaluates and unpacks n[argpos] to a fundamental value
+      template <class ValueT>
+      ValueT unpackOptionalArg(Operator& n, int argpos, const ValueT& defaultVal);
 
       template <class ValueNode>
       void _value(const ValueNode& val)
@@ -2161,7 +2239,167 @@ namespace json_logic
       }
   };
 
-  ValueExpr Calculator::eval(Expr& n)
+  struct SequencePredicate
+  {
+      SequencePredicate(Expr& e, std::ostream& logstream)
+      : expr(e), logger(logstream)
+      {}
+
+      bool operator()(ValueExpr&& elem) const
+      {
+        ValueExpr* elptr = &elem; // workaround, since I am unable to capture a unique_ptr
+
+        Calculator sub{ [elptr]
+                        (const json::string& key, int) mutable -> ValueExpr
+                        {
+                          if (key.size() == 0) return std::move(*elptr);
+
+                          try
+                          {
+                            ObjectVal& o = down_cast<ObjectVal>(**elptr);
+
+                            if (auto pos = o.find(key); pos != o.end())
+                              return std::move(pos->second);
+                          }
+                          catch (const cast_error&) {}
+
+                          return toValueExpr(nullptr);
+                        },
+                        logger
+                      };
+
+        return unpackValue<bool>(sub.eval(expr));
+      }
+
+    private:
+      Expr&         expr;
+      std::ostream& logger;
+  };
+
+
+  template <class ValueT>
+  ValueT
+  Calculator::unpackOptionalArg(Operator& n, int argpos, const ValueT& defaultVal)
+  {
+    if (std::size_t(argpos) >= n.size())
+    {
+      CXX_UNLIKELY;
+      return defaultVal;
+    }
+
+    return unpackValue<ValueT>(*eval(n.operand(argpos)));
+  }
+
+  template <class UnaryOperator>
+  void
+  Calculator::unary(Operator& n, UnaryOperator calc)
+  {
+    const int  num = n.num_evaluated_operands();
+    assert(num == 1);
+
+    const bool res = calc(*eval(n.operand(0)));
+
+    calcres = toValueExpr(res);
+  }
+
+  template <class BinaryOperator>
+  void
+  Calculator::binary(Operator& n, BinaryOperator binop)
+  {
+    const int num = n.num_evaluated_operands();
+    assert(num == 1 || num == 2);
+
+    int       idx = -1;
+    ValueExpr lhs;
+
+    if (num == 2)
+    {
+      CXX_LIKELY;
+      lhs = eval(n.operand(++idx));
+    }
+    else
+    {
+      lhs = toValueExpr(std::int64_t(0));
+    }
+
+    ValueExpr rhs = eval(n.operand(++idx));
+
+    calcres = compute(lhs, rhs, binop);
+  }
+
+  template <class BinaryOperator>
+  void
+  Calculator::reduce(Operator& n, BinaryOperator op)
+  {
+    const int      num = n.num_evaluated_operands();
+    assert(num >= 1);
+
+    int            idx = -1;
+    ValueExpr      res = eval(n.operand(++idx));
+
+    res = convert(std::move(res), op);
+
+    while (idx != (num-1))
+    {
+      ValueExpr rhs = eval(n.operand(++idx));
+
+      rhs = convert(std::move(rhs), op);
+      res = compute(res, rhs, op);
+    }
+
+    calcres = std::move(res);
+  }
+
+  template <class BinaryPredicate>
+  void
+  Calculator::evalPairShortCircuit(Operator& n, BinaryPredicate pred)
+  {
+    const int      num = n.num_evaluated_operands();
+    assert(num >= 2);
+
+    bool           res = true;
+    int            idx = -1;
+    ValueExpr      rhs = eval(n.operand(++idx));
+    assert(rhs.get());
+
+    while (res && (idx != (num-1)))
+    {
+      ValueExpr    lhs = std::move(rhs);
+      assert(lhs.get());
+
+      rhs = eval(n.operand(++idx));
+      assert(rhs.get());
+
+      res = compute(lhs, rhs, pred);
+    }
+
+    calcres = toValueExpr(res);
+  }
+
+
+  void
+  Calculator::evalShortCircuit(Operator& n, bool val)
+  {
+    const int      num = n.num_evaluated_operands();
+    assert(num >= 1);
+
+    int            idx   = -1;
+    ValueExpr      oper  = eval(n.operand(++idx));
+    bool           found = (idx == num-1) || (unpackValue<bool>(*oper) == val);
+
+    // loop until *aa == val or when *aa is the last valid element
+    while (!found)
+    {
+      oper = eval(n.operand(++idx));
+
+      found = (idx == (num-1)) || (unpackValue<bool>(*oper) == val);
+    }
+
+    calcres = std::move(oper);
+  }
+
+  ValueExpr
+  Calculator::eval(Expr& n)
   {
     ValueExpr res;
 
@@ -2276,33 +2514,105 @@ namespace json_logic
     binary(n, Calc<In>{});
   }
 
+  void Calculator::visit(Substr& n)
+  {
+    assert(n.num_evaluated_operands() >= 1);
 
-  void Calculator::visit(Substr&)         { unsupported(); }
-  void Calculator::visit(Array&)          { unsupported(); }
+    json::string str = unpackValue<json::string>(*eval(n.operand(0)));
+    std::int64_t ofs = unpackOptionalArg<std::int64_t>(n, 1, 0);
+    std::int64_t cnt = unpackOptionalArg<std::int64_t>(n, 2, 0);
+
+    if (ofs < 0)
+    {
+      CXX_UNLIKELY;
+      ofs = std::max(std::int64_t(str.size()) + ofs, std::int64_t(0));
+    }
+
+    if (cnt < 0)
+    {
+      CXX_UNLIKELY;
+      cnt = std::max(std::int64_t(str.size()) - ofs + cnt, std::int64_t(0));
+    }
+
+    calcres = toValueExpr(str.subview(ofs, cnt));
+  }
+
+  void Calculator::visit(Array& n)
+  {
+    Operator::container_type elems;
+    Calculator*              self = this;
+
+    std::copy_if( std::make_move_iterator(n.begin()), std::make_move_iterator(n.end()),
+                  std::back_inserter(elems),
+                  [self](AnyExpr&& exp) -> ValueExpr
+                  {
+                    return self->eval(*exp);
+                  }
+                );
+
+    Array& res = deref(new Array);
+
+    res.set_operands(std::move(elems));
+
+    calcres = ValueExpr(&res);
+  }
+
+  void Calculator::visit(Merge& n)
+  {
+    reduce(n, Calc<Merge>{});
+  }
+
   void Calculator::visit(Map&)            { unsupported(); }
   void Calculator::visit(Reduce&)         { unsupported(); }
   void Calculator::visit(Filter&)         { unsupported(); }
-  void Calculator::visit(All&)            { unsupported(); }
-  void Calculator::visit(None&)           { unsupported(); }
-  void Calculator::visit(Some&)           { unsupported(); }
-  void Calculator::visit(Merge&)          { unsupported(); }
 
-  void Calculator::visit(Error&)          { unsupported(); }
+  void Calculator::visit(All& n)
+  {
+    ValueExpr  arr   = eval(n.operand(0));
+    Array&     elems = down_cast<Array>(*arr); // evaluated elements
+    Expr&      expr  = n.operand(1);
+    const bool res   = std::all_of( std::make_move_iterator(elems.begin()), std::make_move_iterator(elems.end()),
+                                    SequencePredicate{expr, logger}
+                                  );
+
+    calcres = toValueExpr(res);
+  }
+
+  void Calculator::visit(None& n)
+  {
+    ValueExpr  arr   = eval(n.operand(0));
+    Array&     elems = down_cast<Array>(*arr); // evaluated elements
+    Expr&      expr  = n.operand(1);
+    const bool res   = std::none_of( std::make_move_iterator(elems.begin()), std::make_move_iterator(elems.end()),
+                                     SequencePredicate{expr, logger}
+                                   );
+
+    calcres = toValueExpr(res);
+  }
+
+
+  void Calculator::visit(Some& n)
+  {
+    ValueExpr  arr   = eval(n.operand(0));
+    Array&     elems = down_cast<Array>(*arr); // evaluated elements
+    Expr&      expr  = n.operand(1);
+    const bool res   = std::any_of( std::make_move_iterator(elems.begin()), std::make_move_iterator(elems.end()),
+                                    SequencePredicate{expr, logger}
+                                  );
+
+    calcres = toValueExpr(res);
+  }
+
+  void Calculator::visit(Error&) { unsupported(); }
 
   void Calculator::visit(Var& n)
   {
     assert(n.num_evaluated_operands() == 1);
 
-    AnyExpr elm = convert(eval(n.operand(0)), StringOperator{});
+    AnyExpr    elm = convert(eval(n.operand(0)), StringOperator{});
+    StringVal& str = down_cast<StringVal>(*elm);
 
-    if (StringVal* str = dynamic_cast<StringVal*>(elm.get()))
-    {
-      CXX_LIKELY;
-      calcres = vars(str->value(), n.num());
-      return;
-    }
-
-    typeError();
+    calcres = vars(str.value(), n.num());
   }
 
 
@@ -2323,13 +2633,6 @@ namespace json_logic
   void Calculator::visit(DoubleVal& n) { _value(n); }
   void Calculator::visit(StringVal& n) { _value(n); }
 
-  void traverseInSAttributeOrder(Expr& e, Visitor& vis)
-  {
-    SAttributeTraversal trav{vis};
-
-    e.accept(trav);
-  }
-
   ValueExpr calculate(AnyExpr& exp, const Calculator::VarAccess& vars)
   {
     Calculator calc{vars, std::cerr};
@@ -2347,20 +2650,35 @@ namespace json_logic
   {
     struct ValuePrinter : FwdVisitor
     {
-      explicit
-      ValuePrinter(std::ostream& stream)
-      : os(stream)
-      {}
+        explicit
+        ValuePrinter(std::ostream& stream)
+        : os(stream)
+        {}
 
-      void visit(NullVal&)     final { os << toString(nullptr); }
-      void visit(BoolVal& n)   final { os << toString(n.value()); }
-      void visit(IntVal& n)    final { os << n.value(); }
-      void visit(UintVal& n)   final { os << n.value(); }
-      void visit(DoubleVal& n) final { os << n.value(); }
-      void visit(StringVal& n) final { os << n.value(); }
-      void visit(Array&)       final { unsupported(); }
+        void visit(NullVal&)     final { os << toConcreteValue(nullptr, json::string{}); }
+        void visit(BoolVal& n)   final { os << toConcreteValue(n.value(), json::string{}); }
+        void visit(IntVal& n)    final { os << n.value(); }
+        void visit(UintVal& n)   final { os << n.value(); }
+        void visit(DoubleVal& n) final { os << n.value(); }
+        void visit(StringVal& n) final { os << n.value(); }
 
-      std::ostream& os;
+        void visit(Array& n)     final
+        {
+          bool first = true;
+
+          os << "[";
+          for (AnyExpr& el : n)
+          {
+            if (first) first = false; else os << ", ";
+
+            el->accept(*this);
+          }
+
+          os << "]";
+        }
+
+      private:
+        std::ostream& os;
     };
 
     ValuePrinter prn{os};
@@ -2369,3 +2687,180 @@ namespace json_logic
     return os;
   }
 }
+
+
+#if SUPPLEMENTAL
+
+  /// traverses the children of a node; does not traverse grandchildren
+  void traverseChildren(Visitor& v, const Operator& node);
+  void traverseAllChildren(Visitor& v, const Operator& node);
+  void traverseChildrenReverse(Visitor& v, const Operator& node);
+
+
+  // only operators have children
+  void _traverseChildren(Visitor& v, Operator::const_iterator aa, Operator::const_iterator zz)
+  {
+    std::for_each( aa, zz,
+                   [&v](const AnyExpr& e) -> void
+                   {
+                     e->accept(v);
+                   }
+                 );
+  }
+
+  void traverseChildren(Visitor& v, const Operator& node)
+  {
+    Operator::const_iterator aa = node.begin();
+
+    _traverseChildren(v, aa, aa + node.num_evaluated_operands());
+  }
+
+  void traverseAllChildren(Visitor& v, const Operator& node)
+  {
+    _traverseChildren(v, node.begin(), node.end());
+  }
+
+  void traverseChildrenReverse(Visitor& v, const Operator& node)
+  {
+    Operator::const_reverse_iterator zz = node.crend();
+    Operator::const_reverse_iterator aa = zz - node.num_evaluated_operands();
+
+    std::for_each( aa, zz,
+                   [&v](const AnyExpr& e) -> void
+                   {
+                     e->accept(v);
+                   }
+                 );
+  }
+
+  namespace
+  {
+    struct SAttributeTraversal : Visitor
+    {
+        explicit
+        SAttributeTraversal(Visitor& client)
+        : sub(client)
+        {}
+
+        void visit(Expr&)        final;
+        void visit(Operator&)    final;
+        void visit(Eq&)          final;
+        void visit(StrictEq&)    final;
+        void visit(Neq&)         final;
+        void visit(StrictNeq&)   final;
+        void visit(Less&)        final;
+        void visit(Greater&)     final;
+        void visit(Leq&)         final;
+        void visit(Geq&)         final;
+        void visit(And&)         final;
+        void visit(Or&)          final;
+        void visit(Not&)         final;
+        void visit(NotNot&)      final;
+        void visit(Add&)         final;
+        void visit(Sub&)         final;
+        void visit(Mul&)         final;
+        void visit(Div&)         final;
+        void visit(Mod&)         final;
+        void visit(Min&)         final;
+        void visit(Max&)         final;
+        void visit(Map&)         final;
+        void visit(Reduce&)      final;
+        void visit(Filter&)      final;
+        void visit(All&)         final;
+        void visit(None&)        final;
+        void visit(Some&)        final;
+        void visit(Merge&)       final;
+        void visit(Cat&)         final;
+        void visit(Substr&)      final;
+        void visit(In&)          final;
+        void visit(Array& n)     final;
+        void visit(Var&)         final;
+        void visit(Log&)         final;
+
+        void visit(If&)          final;
+
+        void visit(NullVal& n)   final;
+        void visit(BoolVal& n)   final;
+        void visit(IntVal& n)    final;
+        void visit(UintVal& n)   final;
+        void visit(DoubleVal& n) final;
+        void visit(StringVal& n) final;
+
+        void visit(Error& n)     final;
+
+      private:
+        Visitor& sub;
+
+        template <class OperatorNode>
+        inline
+        void _visit(OperatorNode& n)
+        {
+          traverseChildren(*this, n);
+          sub.visit(n);
+        }
+
+        template <class ValueNode>
+        inline
+        void _value(ValueNode& n)
+        {
+          sub.visit(n);
+        }
+    };
+
+    void SAttributeTraversal::visit(Expr&)           { typeError();    }
+    void SAttributeTraversal::visit(Operator&)       { typeError();    }
+    void SAttributeTraversal::visit(Eq& n)           { _visit(n); }
+    void SAttributeTraversal::visit(StrictEq& n)     { _visit(n); }
+    void SAttributeTraversal::visit(Neq& n)          { _visit(n); }
+    void SAttributeTraversal::visit(StrictNeq& n)    { _visit(n); }
+    void SAttributeTraversal::visit(Less& n)         { _visit(n); }
+    void SAttributeTraversal::visit(Greater& n)      { _visit(n); }
+    void SAttributeTraversal::visit(Leq& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Geq& n)          { _visit(n); }
+    void SAttributeTraversal::visit(And& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Or& n)           { _visit(n); }
+    void SAttributeTraversal::visit(Not& n)          { _visit(n); }
+    void SAttributeTraversal::visit(NotNot& n)       { _visit(n); }
+    void SAttributeTraversal::visit(Add& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Sub& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Mul& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Div& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Mod& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Min& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Max& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Array& n)        { _visit(n); }
+    void SAttributeTraversal::visit(Map& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Reduce& n)       { _visit(n); }
+    void SAttributeTraversal::visit(Filter& n)       { _visit(n); }
+    void SAttributeTraversal::visit(All& n)          { _visit(n); }
+    void SAttributeTraversal::visit(None& n)         { _visit(n); }
+    void SAttributeTraversal::visit(Some& n)         { _visit(n); }
+    void SAttributeTraversal::visit(Merge& n)        { _visit(n); }
+    void SAttributeTraversal::visit(Cat& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Substr& n)       { _visit(n); }
+    void SAttributeTraversal::visit(In& n)           { _visit(n); }
+    void SAttributeTraversal::visit(Var& n)          { _visit(n); }
+    void SAttributeTraversal::visit(Log& n)          { _visit(n); }
+
+    void SAttributeTraversal::visit(If& n)           { _visit(n); }
+
+    void SAttributeTraversal::visit(NullVal& n)      { _value(n); }
+    void SAttributeTraversal::visit(BoolVal& n)      { _value(n); }
+    void SAttributeTraversal::visit(IntVal& n)       { _value(n); }
+    void SAttributeTraversal::visit(UintVal& n)      { _value(n); }
+    void SAttributeTraversal::visit(DoubleVal& n)    { _value(n); }
+    void SAttributeTraversal::visit(StringVal& n)    { _value(n); }
+
+    void SAttributeTraversal::visit(Error& n)        { sub.visit(n); }
+  }
+
+  /// AST traversal function that calls v's visit methods in post-fix order
+  void traverseInSAttributeOrder(Expr& e, Visitor& vis);
+
+  void traverseInSAttributeOrder(Expr& e, Visitor& vis)
+  {
+    SAttributeTraversal trav{vis};
+
+    e.accept(trav);
+  }
+#endif /* SUPPLEMENTAL */

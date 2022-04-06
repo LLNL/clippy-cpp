@@ -8,9 +8,9 @@ namespace xpr = experimental;
 
 namespace
 {
-  // 
-	constexpr bool FirstMatch = false;
-	
+  //
+  constexpr bool FirstMatch = false;
+
   // common constants
   const std::string ST_METALL_LOCATION = "metall_location";
   const std::string ST_DATAFRAME_NAME  = "dataframe_key";
@@ -48,11 +48,10 @@ namespace
   }
 
   CXX_NORETURN
-  inline 
+  inline
   bool fail(std::string msg)
   {
     throw std::runtime_error{std::move(msg)};
-    return false;
   }
 }
 

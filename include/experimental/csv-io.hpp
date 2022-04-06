@@ -120,7 +120,6 @@ auto read(std::istream& stream, char sep = ',') -> T
   return res;
 }
 
-
 template <class T>
 auto read_rec(std::istream& stream, T res, char sep = ',') -> T
 {

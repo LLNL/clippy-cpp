@@ -16,6 +16,13 @@ static const std::string methodName = "__getitem__";
 
 static const std::string expr = "expressions";
 
+void append(std::vector<boost::json::object>& lhs, std::vector<boost::json::object> rhs)
+{
+  if (lhs.size() == 0) return lhs.swap(rhs);
+
+  std::move(rhs.begin(), rhs.end(), std::back_inserter(lhs));
+}
+
 
 int main(int argc, char** argv)
 {
@@ -40,6 +47,12 @@ int main(int argc, char** argv)
     std::string    location = clip.get_state<std::string>(ST_METALL_LOCATION);
     //~ std::string      key = clip.get_state<std::string>(ST_JSONLINES_KEY);
     JsonExpression jsonExpression = clip.get<JsonExpression>(expr);
+    JsonExpression selectedExpression;
+
+    if (clip.has_state(ST_SELECTED))
+      selectedExpression = clip.get_state<JsonExpression>(ST_SELECTED);
+
+    append(selectedExpression, std::move(jsonExpression));
 
     clippy::object res;
     clippy::object clippy_type;
@@ -47,7 +60,7 @@ int main(int argc, char** argv)
 
     state.set_val(ST_METALL_LOCATION, std::move(location));
     //~ state.set_val(ST_JSONLINES_KEY,   std::move(key));
-    state.set_val(ST_SELECTED,        std::move(jsonExpression));
+    state.set_val(ST_SELECTED,        std::move(selectedExpression));
 
     clippy_type.set_val("__class__", CLASS_NAME);
     clippy_type.set_json("state",    std::move(state));

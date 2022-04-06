@@ -92,7 +92,7 @@ int main(int argc, char** argv)
 
       auto rowPredicate = [varLookup](jl::AnyExpr& query) -> bool
                           {
-                            return !toBool(jl::calculate(query, varLookup));
+                            return !jl::unpackValue<bool>(jl::calculate(query, varLookup));
                           };
 
       const std::vector<jl::AnyExpr>::iterator lim = queries.end();

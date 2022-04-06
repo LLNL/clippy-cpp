@@ -8,8 +8,8 @@
 
 using ColumnDescription = std::pair<std::string, std::string>;
 
-const std::string& type(const ColumnDescription& col) { return col.second; } 
-const std::string& name(const ColumnDescription& col) { return col.first; } 
+const std::string& type(const ColumnDescription& col) { return col.second; }
+const std::string& name(const ColumnDescription& col) { return col.first; }
 
 static const std::string METHOD_NAME = "__init__";
 static const std::string ARG_COLUMN_DESC = "columns";
@@ -25,11 +25,11 @@ void appendColumn(xpr::DataFrame& df, const ColumnDescription& desc)
   else if (type(desc) == "real")
     df.add_column_default_value(xpr::dense<xpr::real_t>{0});
   else if (type(desc) == "string")
-    df.add_column_default_value(xpr::dense<xpr::string_t>{""});
+    df.add_column_default_value(xpr::dense<xpr::string_t>{df.persistent_string("")});
   else
     throw std::runtime_error{UNKNOWN_COLUMN_TYPE + name(desc)};
 
-  df.name_last_column(xpr::string_t{name(desc).c_str()});
+  df.name_last_column(df.persistent_string(name(desc).c_str()));
 }
 
 void appendColumns(xpr::DataFrame& df, const std::vector<ColumnDescription>& cols)
@@ -48,15 +48,15 @@ int main(int argc, char** argv)
 
   clip.add_required<std::string>(ST_METALL_LOCATION, "Location of the Metall store");
   clip.add_required<std::string>(ST_DATAFRAME_NAME,  "Name of the dataframe object within the Metall store");
-  
-  // ARG_COLUMN_DESC is optional. If not present, the __init__ method assumes that we want to 
+
+  // ARG_COLUMN_DESC is optional. If not present, the __init__ method assumes that we want to
   //   reopen an existing dataframe.
-  clip.add_optional<std::vector<ColumnDescription>>( ARG_COLUMN_DESC, 
+  clip.add_optional<std::vector<ColumnDescription>>( ARG_COLUMN_DESC,
                                                      "Column description (pair of string/string describing name and type of columns)."
                                                      "\n  Valid types in (string | int | uint | real)",
                                                      std::vector<ColumnDescription>{}
                                                    );
-  
+
   // no object-state requirements in constructor
   if (clip.parse(argc, argv)) { return 0; }
 
@@ -70,11 +70,11 @@ int main(int argc, char** argv)
     std::unique_ptr<xpr::DataFrame> dfp       = makeDataFrame(createNew, location, key);
     xpr::DataFrame&                 df        = *dfp;
 
-    if (createNew) 
+    if (createNew)
     {
       // add the specified columns to the dataframe object.
       std::vector<ColumnDescription> column_desc = clip.get<std::vector<ColumnDescription>>(ARG_COLUMN_DESC);
-      
+
       appendColumns(df, column_desc);
     }
 
