@@ -10,7 +10,7 @@ function ( add_df_example example_name )
 
 include_directories(${Boost_INCLUDE_DIRS}) 
 
-add_library(libcliprt STATIC clip)
+add_library(libcliprt STATIC clip.cpp)
 target_link_libraries(libcliprt PUBLIC ${Boost_LIBRARIES})
 
 add_df_example(metadataquery)

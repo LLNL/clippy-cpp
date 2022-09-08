@@ -4,13 +4,15 @@
 # SPDX-License-Identifier: MIT
 
 # Works with 3.11 and tested through 3.15 (not tested yet)
-cmake_minimum_required(VERSION 3.11...3.15)
+cmake_minimum_required(VERSION 3.14)
 
 
 project(CLIPPy
     VERSION 0.1
     DESCRIPTION "Command Line Interface Plus Python"
     LANGUAGES CXX)
+
+include(FetchContent) 
 
 # Only do these if this is the main project, and not if it is included through add_subdirectory
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -57,18 +59,24 @@ set(NLOHMANN_JSON_INCLUDE_DIR ${PROJECT_BINARY_DIR}/nlohmann_json/include)
 
 #
 #  Metall
-#set(METALL_WORK_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-work)
-set(METALL_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-src)
-set(METALL_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-build)
-set(METALL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-install)
-ExternalProject_Add(metall
+find_package(Metall QUIET)
+if (NOT Metall_FOUND)
+    #set(METALL_WORK_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-work)
+    set(METALL_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-src)
+    set(METALL_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-build)
+    set(METALL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-install)
+		FetchContent_Declare(Metall
         GIT_REPOSITORY https://github.com/LLNL/metall.git
         GIT_TAG master
-        SOURCE_DIR ${METALL_SOURCE_DIR}
-        BINARY_DIR ${METALL_BUILD_DIR}
-        CMAKE_ARGS -DINSTALL_HEADER_ONLY=ON -DCMAKE_INSTALL_PREFIX=${METALL_INSTALL_DIR}
-        )
-set(METALL_INCLUDE_DIR ${METALL_INSTALL_DIR}/include)
+				)
+#        SOURCE_DIR ${METALL_SOURCE_DIR}
+#        BINARY_DIR ${METALL_BUILD_DIR}
+#        CMAKE_ARGS -DINSTALL_HEADER_ONLY=ON -DCMAKE_INSTALL_PREFIX=${METALL_INSTALL_DIR}
+#        )
+# set(METALL_INCLUDE_DIR ${METALL_INSTALL_DIR}/include)
+  FetchContent_MakeAvailable(Metall)
+endif ()
+
 find_package(Threads REQUIRED)
 
 #
