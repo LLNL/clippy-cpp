@@ -10,6 +10,7 @@
 #include <sstream>
 #include <functional>
 
+#include "cxx-compat.hpp"
 #include "dataframe.hpp"
 
 namespace experimental
@@ -17,81 +18,96 @@ namespace experimental
 
 namespace
 {
+
+
+bool testEof(std::istream& is)
+{
+  std::string s;
+
+	is >> s;
+	return s == "" && is.eof();
+}
+
+
 template <class EX = std::logic_error>
 inline
-void csv_assert(bool cond, std::string msg) // , std::source_location pos = std::source_location::current())
+void csv_assertEof( std::istream& is, std::string msg
+  #if __cpp_lib_source_location
+                  , std::source_location pos = std::source_location::current()
+	#endif /* __cpp_lib_source_location */
+                  ) 
 {
-  if (cond) return;
+  bool cond = true;
+
+#ifndef NDEBUG
+  cond = testEof(is);
+#endif /* NDEBUG */
+
+  if (cond) { CXX_LIKELY; return; }
   
   std::stringstream errmsg;
   
   errmsg << msg 
-         //~ << " @ " << pos.file_name 
-         //~ << ":" << pos.line
+	  #if __cpp_lib_source_location
+         << " @ " << pos.file_name 
+         << ":" << pos.line
+	  #endif /* __cpp_lib_source_location */
          ;
          
   throw EX{errmsg.str()};
 }  
   
-#if OBSOLETE_CODE
-auto readStr2(std::istream& stream, char sep = ',') -> std::string
-{
-  std::string el;
 
-  getline(stream, el, sep);
-  return el;
-}
-#endif /* OBSOLETE_CODE */
-
-void processQuotedChar(std::istream& stream, std::vector<char>& buf, bool inclQuotes)
+void processQuotedChar(std::istream& stream, std::string& buf, bool inclQuotes)
 {
   if (inclQuotes) buf.push_back('"');
 
   while (true)
   {
-    char ch = stream.get();
+    int ch = stream.get();
 
+    assert(ch != std::char_traits<char>::eof());
     if (ch == '"')
     {
+		  CXX_UNLIKELY;
       if (inclQuotes) buf.push_back('"');
 
       if (stream.peek() != '"')
         return;
 
       ch = stream.get();
-}
+    }
 
-    buf.push_back(ch);
+    buf.push_back(char(ch));
   }
 }
 
 auto readStr(std::istream& stream, char sep = ',', bool inclQuotes = false) -> std::string
 {
-  std::vector<char> buf;
-  char              ch = '\0';
+  if (stream.eof()) return std::string{};
+  
+	std::string res;
+	int         ch = stream.get();
 
-  while (!stream.eof() && ((ch = stream.get()) != sep))
+  while ((ch != sep) && (ch != std::char_traits<char>::eof()))
   {
     if (ch == '"')
-      processQuotedChar(stream, buf, inclQuotes);
+		{
+		  CXX_UNLIKELY;
+      processQuotedChar(stream, res, inclQuotes);
+    }
     else
-      buf.push_back(ch);
+      res.push_back(char(ch));
+
+	  ch = stream.get();
   }
 
-  return std::string{buf.begin(), buf.end()};
+  return res;
 }
 
 auto readStrLn(std::istream& stream, bool inclQuotes = false) -> std::string
 {
   return readStr(stream, '\n', inclQuotes);
-}
-
-bool assertEof(std::istream& stream)
-{
-  std::string tmp;
-  stream >> tmp;
-  
-  return tmp == "" && stream.eof();
 }
 
 template <class T>
@@ -101,7 +117,7 @@ auto read(std::istream& stream, char sep = ',') -> T
   T                 res;
   
   ss >> res;
-  csv_assert(assertEof(ss), "error reading CSV value @1");
+  csv_assertEof(ss, "error reading CSV value @1");
   return res;
 }
 
@@ -111,7 +127,7 @@ auto read_rec(std::istream& stream, T res, char sep = ',') -> T
   std::stringstream ss(readStr(stream, sep));
 
   ss >> res;
-  csv_assert(assertEof(ss), "error reading CSV value @1");
+  csv_assertEof(ss, "error reading CSV value @1");
   return res;
 }
 
@@ -158,10 +174,10 @@ auto readTupleVariant( std::istream& stream,
                      ) -> std::vector<ElemType>
 {
   std::vector<ElemType> res;
-  
+
   for (const std::function<ElemType(const std::string&)>& celladapter : adapt)
     res.emplace_back(celladapter(readStr(stream)));
-    
+
   return res;
 }
 
@@ -206,7 +222,6 @@ void writeLn(std::ostream& os, std::tuple<Field...>&& rec, std::index_sequence<I
 
 } // namespace anonymous
 
-
 template<class... Fields>
 auto importCSV(DataFrame& frame, std::istream& is)
 {
@@ -220,7 +235,7 @@ auto importCSV(DataFrame& frame, std::istream& is)
     std::stringstream linestream(line);
       
     frame.add(readTuple<Fields...>(linestream));
-    csv_assert(assertEof(linestream), "error reading CSV value @2");
+    csv_assertEof(linestream, "error reading CSV value @2");
   }
 }
 
@@ -237,7 +252,7 @@ auto importCSV_rec(DataFrame& frame, std::istream& is, std::tuple<Fields...> sam
     std::stringstream linestream(line);
 
     frame.add(readTuple_rec(linestream, sample));
-    csv_assert(assertEof(linestream), "error reading CSV value @2");
+    csv_assertEof(linestream, "error reading CSV value @2");
   }
 }
 
@@ -279,10 +294,10 @@ auto importCSV_variant( DataFrame& frame,
     // break on eof
     if (!is) break;
     
-    std::stringstream linestream(line);
+    std::stringstream linestream{std::move(line)};
       
     frame.add_variant(readTupleVariant(linestream, adapt));
-    csv_assert(assertEof(linestream), "error reading CSV value @3");
+    csv_assertEof(linestream, "error reading CSV value @4");
   }
 }
   

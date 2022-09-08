@@ -8,11 +8,13 @@
 
 #if defined __has_include
   #if __has_include (<source_location>)
-	#include <source_location>
+  #include <source_location>
   #endif
 #endif /* defined __has_include */
 
 #include <boost/json.hpp>
+
+#include "experimental/cxx-compat.hpp"
 
 constexpr const bool firstMatch = false;
 
@@ -30,11 +32,15 @@ void setValueIfAvail(const boost::json::value& args, const char* key, int& val);
 
 int columnIndex(const std::vector<std::string>& all, const std::string& colname);
 
-bool fail(const std::string& msg);
+CXX_NORETURN
+bool fail( const std::string& msg
+#if __cpp_lib_source_location
+         , std::source_location pos = std::source_location::current()
+#endif /* __cpp_lib_source_location */
+         );
 
 namespace
 {
-  template <class EX = std::logic_error>
   inline
   void clippy_assert( bool cond
                     , const std::string& msg
@@ -43,17 +49,12 @@ namespace
 #endif /* __cpp_lib_source_location */
                     )
   {
-    if (cond) return;
-
-    std::stringstream errmsg;
-
-    errmsg << msg
+    if (cond) { CXX_LIKELY; return; }
+    
+    fail( msg
 #if __cpp_lib_source_location
-           << " @ " << pos.file_name
-           << " : " << pos.line
+        , pos
 #endif /* __cpp_lib_source_location */
-           ;
-
-    throw EX{errmsg.str()};
+        );
   }
 }
