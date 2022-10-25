@@ -16,7 +16,6 @@
 
 #include "clippy-object.hpp"
 
-#include <boost/json/src.hpp>
 
 #if __has_include(<mpi.h>)
 #include <mpi.h>
@@ -29,6 +28,11 @@
 static constexpr bool LOG_JSON = false;
 #endif
 
+#if WITH_YGM
+#include <ygm/comm.hpp>
+#endif /* WITH_YGM */
+
+#include <boost/json/src.hpp>
 
 namespace clippy {
 
@@ -57,6 +61,25 @@ namespace clippy {
       res.emplace_back(std::move(val));
       return res;
     }
+
+    std::string clippyLogFile{"clippy.log"};
+
+#if WITH_YGM
+    std::string userInputString;
+
+    struct BcastInput
+    {
+      void operator()(std::string inp) const
+      {
+        userInputString = std::move(inp);
+        if (LOG_JSON) {
+          std::ofstream logfile{clippyLogFile, std::ofstream::app};
+
+          logfile << "--in-> " << userInputString << std::endl;
+        }
+      }
+    };
+#endif
   }
 
 class clippy {
@@ -89,7 +112,7 @@ class clippy {
         write_response(std::cout);
 
         if (LOG_JSON) {
-          std::ofstream logfile{"clippy.log", std::ofstream::app};
+          std::ofstream logfile{clippyLogFile, std::ofstream::app};
 
           logfile << "<-out- ";
           write_response(logfile);
@@ -108,7 +131,7 @@ class clippy {
   void log(const M& msg) {
     if (!LOG_JSON) return;
 
-    std::ofstream logfile{"clippy.log", std::ofstream::app};
+    std::ofstream logfile{clippyLogFile, std::ofstream::app};
     log(logfile, msg);
   }
 
@@ -175,7 +198,7 @@ class clippy {
     const char *DRYRUN_FLAG = "--clippy-validate";
     if (argc == 2 && std::string(argv[1]) == JSON_FLAG) {
       if (LOG_JSON) {
-          std::ofstream logfile{"clippy.log", std::ofstream::app};
+          std::ofstream logfile{clippyLogFile, std::ofstream::app};
 
           logfile << "<-hlp- " << m_json_config << std::endl;
       }
@@ -188,7 +211,7 @@ class clippy {
     m_json_input = boost::json::parse(buf);
 
     if (LOG_JSON) {
-      std::ofstream logfile{"clippy.log", std::ofstream::app};
+      std::ofstream logfile{clippyLogFile, std::ofstream::app};
 
       logfile << "--in-> " << m_json_input << std::endl;
     }
@@ -199,6 +222,49 @@ class clippy {
     // Good to go for reals
     return false;
   }
+
+#if WITH_YGM
+  bool parse(int argc, char **argv, ygm::comm& world) {
+    const char *JSON_FLAG = "--clippy-help";
+    const char *DRYRUN_FLAG = "--clippy-validate";
+
+    clippyLogFile = "clippy-" + std::to_string(world.rank()) + ".log";
+
+    if (argc == 2 && std::string(argv[1]) == JSON_FLAG) {
+      if (LOG_JSON && (world.rank() == 0)) {
+          std::ofstream logfile{clippyLogFile, std::ofstream::app};
+
+          logfile << "<-hlp- " << m_json_config << std::endl;
+      }
+
+      std::cout << m_json_config;
+      return true;
+    }
+
+    if (world.rank() == 0)
+    {
+      std::getline(std::cin, userInputString);
+      world.async_bcast(BcastInput{}, userInputString);
+    }
+
+    world.barrier();
+
+    m_json_input = boost::json::parse(userInputString);
+
+    if (LOG_JSON && (world.rank() == 0)) {
+      std::ofstream logfile{clippyLogFile, std::ofstream::app};
+
+      logfile << "--in-> " << m_json_input << std::endl;
+    }
+    validate_json_input();
+
+    if (argc == 2 && std::string(argv[1]) == DRYRUN_FLAG) { return true; }
+
+    // Good to go for reals
+    return false;
+  }
+#endif /* WITH_YGM */
+
 
   template <typename T>
   T get(const std::string &name) {
