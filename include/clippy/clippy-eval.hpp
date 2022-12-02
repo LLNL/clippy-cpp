@@ -804,7 +804,7 @@ namespace json_logic
               CXX_LIKELY;
               res = &pos->second(obj, varmap);
 
-              if (pos->second == mkOperator<Var>)
+              if (pos->second == &mkOperator<Var>)
                 varmap.insert(down_cast<Var>(*res));
             }
             else
