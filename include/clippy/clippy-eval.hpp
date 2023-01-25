@@ -866,7 +866,7 @@ namespace json_logic
       return std::unique_ptr<Expr>(res);
     }
 
-
+    inline
     std::tuple<AnyExpr, std::vector<json::string>, bool>
     translateNode(JsonExpr& n)
     {
@@ -972,92 +972,135 @@ namespace json_logic
   //
   // coercion functions
 
+  /// conversion to int64
+  /// \{
+  inline
   std::int64_t toConcreteValue(const json::string& str, const std::int64_t&)
   {
     return std::stoi(std::string{str.c_str()});
   }
 
+  inline
   std::int64_t toConcreteValue(double d, const std::int64_t&)
   {
     return d;
   }
 
+  inline
   std::int64_t toConcreteValue(bool b, const std::int64_t&)
   {
     return b;
   }
 
+  inline
   std::int64_t toConcreteValue(std::uint64_t v, const std::int64_t&)
   {
     return v;
   }
 
+  inline
+  std::int64_t toConcreteValue(std::int64_t v, const std::int64_t&)
+  {
+    return v;
+  }
+  /// \}
 
+  /// conversion to uint64
+  /// \{
+  inline
   std::uint64_t toConcreteValue(const json::string& str, const std::uint64_t&)
   {
     return std::stoull(std::string{str.c_str()});
   }
 
+  inline
   std::uint64_t toConcreteValue(double d, const std::uint64_t&)
   {
     return d;
   }
 
+  inline
   std::uint64_t toConcreteValue(std::int64_t v, const std::uint64_t&)
   {
     return v;
   }
 
+  inline
+  std::uint64_t toConcreteValue(std::uint64_t v, const std::uint64_t&)
+  {
+    return v;
+  }
+
+  inline
   std::uint64_t toConcreteValue(bool b, const std::uint64_t&)
   {
     return b;
   }
+  /// \}
 
-
+  /// conversion to double
+  /// \{
+  inline
   double toConcreteValue(const json::string& str, const double&)
   {
     return std::stod(std::string{str.c_str()});
   }
 
+  inline
   double toConcreteValue(std::int64_t val, const double&)
   {
     return val;
   }
 
+  inline
   double toConcreteValue(std::uint64_t val, const double&)
   {
     return val;
   }
 
+  inline
+  double toConcreteValue(double val, const double&)
+  {
+    return val;
+  }
+  /// \}
 
+  /// conversion to string
+  /// \{
   template <class Val>
+  inline
   json::string toConcreteValue(Val v, const json::string&)
   {
     return json::string{std::to_string(v)};
   }
 
+  inline
   json::string toConcreteValue(bool b, const json::string&)
   {
     return json::string{b ? "true" : "false"};
   }
 
+  inline
+  json::string toConcreteValue(const json::string& s, const json::string&)
+  {
+    return s;
+  }
+
+  inline
   json::string toConcreteValue(std::nullptr_t, const json::string&)
   {
     return json::string{"null"};
   }
-
-
+  /// \}
 
 
   /// conversion to boolean
   /// \{
-
-  bool toConcreteValue(std::int64_t v, const bool&)        { return v; }
-  bool toConcreteValue(std::uint64_t v, const bool&)       { return v; }
-  bool toConcreteValue(double v, const bool&)              { return v; }
-  bool toConcreteValue(const json::string& v, const bool&) { return v.size() != 0; }
-  bool toConcreteValue(Array& v, const bool&)              { return v.num_evaluated_operands(); }
-
+  inline bool toConcreteValue(std::int64_t v, const bool&)        { return v; }
+  inline bool toConcreteValue(std::uint64_t v, const bool&)       { return v; }
+  inline bool toConcreteValue(double v, const bool&)              { return v; }
+  inline bool toConcreteValue(const json::string& v, const bool&) { return v.size() != 0; }
+  inline bool toConcreteValue(Array& v, const bool&)              { return v.num_evaluated_operands(); }
   /// \}
 
 

@@ -23,8 +23,9 @@
 
 namespace experimental
 {
-//~ using string_t = std::string;  
-//~ using string_t  = boost::container::string;  
+
+//~ using string_t = std::string;
+//~ using string_t  = boost::container::string;
 using string_t            = boost::container::basic_string< char,
                                                             std::char_traits<char>,
                                                             metall::manager::allocator_type<char>
@@ -33,7 +34,9 @@ using string_t            = boost::container::basic_string< char,
 using int_t               = int64_t;
 using uint_t              = uint64_t;
 using real_t              = double;
-using dataframe_variant_t = std::variant<int_t, real_t, uint_t, string_t>;
+struct notavail_t{};
+
+using dataframe_variant_t = std::variant<notavail_t, int_t, real_t, uint_t, string_t>;
 
 struct runtime_type_error : std::runtime_error
 {
@@ -704,7 +707,7 @@ struct VectorAccessorAny
     }
 
     template <class T>
-    const T& default_value(void* cont) const 
+    const T& default_value(void* cont) const
     {
       return vectorT<T>().default_value(cont, tag<T>());
     }
@@ -1028,8 +1031,9 @@ struct DataFrame
       return memmgr.get_allocator();
     }
 
+    template <class StringT>
     string_t
-    persistent_string(const std::string& str) const
+    persistent_string(const StringT& str) const
     {
       return string_t{str.c_str(), str.size(), string_allocator()};
     }
@@ -1067,7 +1071,7 @@ struct DataFrame
     }
 
     std::vector<int>
-    get_index_list(const std::vector<string_t>& colnames)
+    get_index_list(const std::vector<string_t>& colnames) const
     {
       std::vector<int> res;
 
@@ -1078,12 +1082,12 @@ struct DataFrame
     }
 
     std::vector<int>
-    get_index_list_std(const std::vector<std::string>& colnames)
+    get_index_list_std(const std::vector<std::string>& colnames) const
     {
       std::vector<int> res;
 
       for (const std::string& colname : colnames)
-        res.push_back(colIdx(persistent_string(colname)));
+        res.push_back(colIdx(colname));
 
       return res;
     }
@@ -1104,7 +1108,7 @@ struct DataFrame
       return add_row<RowType...>(std::move(el), std::make_index_sequence<sizeof... (RowType)>());
     }
 
-    void add_variant(std::vector<dataframe_variant_t>&& row)
+    void add(std::vector<dataframe_variant_t>&& row)
     {
       std::size_t col = 0;
 
@@ -1300,7 +1304,18 @@ struct DataFrame
     ColumnVariant
     get_column_variant(const std::string& colname) const
     {
-      return get_column_variant(colIdx(persistent_string(colname)));
+      return get_column_variant(colIdx(colname));
+    }
+
+    std::vector<ColumnVariant>
+    get_column_variants() const
+    {
+      std::vector<ColumnVariant> res;
+
+      for (int idx = 0, lim = columns(); idx < lim; ++idx)
+        res.emplace_back(get_column_variant(idx));
+
+      return res;
     }
 
     std::vector<ColumnDesc>
@@ -1406,6 +1421,28 @@ struct DataFrame
       const ColumnOfsRep& desc = allColumns->at(col);
 
       return ColumnRep{desc.first, metall::to_raw_pointer(desc.second)};
+    }
+
+    size_t colIdx(std::string_view name) const
+    {
+      using iterator = typename ColumnNames::iterator;
+
+      assert(allColNames);
+
+      auto lt = [](const ColumnNames::value_type& col, const std::string_view& name) -> bool
+                {
+                  return name.compare(0, col.first.size(), &*col.first.begin()) > 0;
+                };
+      iterator pos = std::lower_bound( allColNames->begin(), allColNames->end(), name, lt );
+
+      if (name.compare(0, pos->first.size(), &*pos->first.begin()) < 0)
+      {
+        CXX_UNLIKELY;
+        throw unknown_column_error("not a known column");
+      }
+
+      // *pos == name
+      return pos->second;
     }
 
     size_t colIdx(const string_t& name) const
@@ -1747,5 +1784,8 @@ Fn forallRows(Fn fn, size_t rowlimit, ColumnRange... columns)
 
 
 } // namespace experimental
+
+
+
 
 
