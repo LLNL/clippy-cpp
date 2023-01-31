@@ -464,6 +464,9 @@ struct VectorAccessorBase : VectorAccessorBaseT<string_t>
 
   /// returns an iterator pair of the column
   virtual range_variant_t range_variant(void* /*cont*/) const = 0;
+
+  ///
+  virtual void clear(void*) const = 0;
 };
 
 
@@ -532,6 +535,11 @@ struct VectorAccessorCommon : VectorAccessorBase
   default_value_variant(void* vec) const override
   {
     return value_variant_t{ default_value(vec, tag<T>()) };
+  }
+
+  void clear(void* vec) const override
+  {
+    data(vec).clear();
   }
 };
 
@@ -772,6 +780,10 @@ struct VectorAccessorAny
       return vector().range_variant(cont);
     }
 
+    void clear(void* cont) const
+    {
+      return vector().clear(cont);
+    }
 
     //
     // meta info
@@ -849,6 +861,10 @@ struct ColumnVariant
       return accessor->range_variant(container);
     }
 
+    void clear() const
+    {
+      accessor->clear(container);
+    }
 
     //
     // meta info
@@ -1065,7 +1081,7 @@ struct DataFrame
       std::vector<dataframe_variant_t> res;
 
       for (auto col : idxlst)
-        res.emplace_back(get_cell_variant(row, col));
+        res.emplace_back(col >= 0 ? get_cell_variant(row, col) : dataframe_variant_t{});
 
       return res;
     }
@@ -1087,7 +1103,16 @@ struct DataFrame
       std::vector<int> res;
 
       for (const std::string& colname : colnames)
-        res.push_back(colIdx(colname));
+      {
+        try
+        {
+          res.push_back(colIdx(colname));
+        }
+        catch (const unknown_column_error&)
+        {
+          res.push_back(-1);
+        }
+      }
 
       return res;
     }
@@ -1236,7 +1261,7 @@ struct DataFrame
     std::pair<typename dense_vector_t<T>::iterator, typename dense_vector_t<T>::iterator>
     get_dense_column_std(const std::string& colname) const
     {
-      return get_dense_column<T>(persistent_string(colname));
+      return get_dense_column<T>(colIdx(std::string_view{colname.begin(), colname.size()}));
     }
 
     template <class T>
@@ -1260,7 +1285,7 @@ struct DataFrame
     std::pair<typename sparse_vector_t<T>::iterator, typename sparse_vector_t<T>::iterator>
     get_sparse_column_std(const std::string& colname) const
     {
-      return get_sparse_column<T>(persistent_string(colname));
+      return get_sparse_column<T>(colIdx(std::string_view{colname.begin(), colname.size()}));
     }
 
     template <class T>
@@ -1284,7 +1309,7 @@ struct DataFrame
     std::pair<AnyColumnIterator<T>, AnyColumnIterator<T> >
     get_any_column_std(const std::string& colname) const
     {
-      return get_any_column<T>(persistent_string(colname));
+      return get_any_column<T>(colIdx(std::string_view{colname.begin(), colname.size()}));
     }
 
     ColumnVariant
@@ -1342,7 +1367,6 @@ struct DataFrame
       return res;
     }
 
-
     std::vector<ColumnDesc>
     get_column_descriptors(const std::vector<string_t>& colnames)
     {
@@ -1372,7 +1396,17 @@ struct DataFrame
       return accessors[rep.first].cell_variant(rep.second, row);
     }
 
+    dataframe_variant_t
+    get_cell_variant(int row, std::string_view colname) const
+    {
+      return get_cell_variant(row, colIdx(colname));
+    }
 
+    void clear()
+    {
+      for (int idx = 0, lim = columns(); idx < lim; ++idx)
+        get_column_variant(idx).clear();
+    }
 
 /*
     template <class... RowType>
@@ -1784,8 +1818,5 @@ Fn forallRows(Fn fn, size_t rowlimit, ColumnRange... columns)
 
 
 } // namespace experimental
-
-
-
 
 

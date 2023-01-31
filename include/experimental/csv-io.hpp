@@ -35,7 +35,7 @@ void csv_assertEof( std::istream& is, std::string msg
   #if __cpp_lib_source_location
                   , std::source_location pos = std::source_location::current()
 	#endif /* __cpp_lib_source_location */
-                  ) 
+                  )
 {
   bool cond = true;
 
@@ -44,19 +44,19 @@ void csv_assertEof( std::istream& is, std::string msg
 #endif /* NDEBUG */
 
   if (cond) { CXX_LIKELY; return; }
-  
+
   std::stringstream errmsg;
-  
-  errmsg << msg 
+
+  errmsg << msg
 	  #if __cpp_lib_source_location
-         << " @ " << pos.file_name 
+         << " @ " << pos.file_name
          << ":" << pos.line
 	  #endif /* __cpp_lib_source_location */
          ;
-         
+
   throw EX{errmsg.str()};
-}  
-  
+}
+
 
 void processQuotedChar(std::istream& stream, std::string& buf, bool inclQuotes)
 {
@@ -85,7 +85,7 @@ void processQuotedChar(std::istream& stream, std::string& buf, bool inclQuotes)
 auto readStr(std::istream& stream, char sep = ',', bool inclQuotes = false) -> std::string
 {
   if (stream.eof()) return std::string{};
-  
+
 	std::string res;
 	int         ch = stream.get();
 
@@ -115,7 +115,7 @@ auto read(std::istream& stream, char sep = ',') -> T
 {
   std::stringstream ss(readStr(stream, sep));
   T                 res;
-  
+
   ss >> res;
   csv_assertEof(ss, "error reading CSV value @1");
   return res;
@@ -169,7 +169,7 @@ auto readLn(std::istream& stream) -> T
 }
 
 template <class ElemType>
-auto readTupleVariant( std::istream& stream, 
+auto readTupleVariant( std::istream& stream,
                        const std::vector<std::function<ElemType(const std::string&)> >& adapt
                      ) -> std::vector<ElemType>
 {
@@ -191,23 +191,23 @@ struct WriteWrapper
 template <class T>
 std::ostream& operator<<(std::ostream& os, WriteWrapper<T> ww)
 {
-  return os << ww.elem; 
+  return os << ww.elem;
 }
 
 template <class T>
 std::ostream& operator<<(std::ostream& os, WriteWrapper<std::optional<T>> ww)
 {
-  if (ww.elem) os << *ww.elem; 
-  
+  if (ww.elem) os << *ww.elem;
+
   return os;
-} 
+}
 
 
 template <class T>
 void writeElem(std::ostream& os, T&& elem, size_t col)
 {
   if (col) os << ", ";
-  
+
   os << WriteWrapper<T>{elem};
 }
 
@@ -216,7 +216,7 @@ template <class... Field, size_t... I>
 void writeLn(std::ostream& os, std::tuple<Field...>&& rec, std::index_sequence<I...>)
 {
   (writeElem<Field>(os, std::move(std::get<I>(rec)), I), ...);
-  
+
   os << std::endl;
 }
 
@@ -225,15 +225,15 @@ void writeLn(std::ostream& os, std::tuple<Field...>&& rec, std::index_sequence<I
 template<class... Fields>
 auto importCSV(DataFrame& frame, std::istream& is)
 {
-  for (;;) 
+  for (;;)
   {
     std::string line = readStrLn(is, true);
-    
+
     // break on eof
     if (!is) break;
-    
+
     std::stringstream linestream(line);
-      
+
     frame.add(readTuple<Fields...>(linestream));
     csv_assertEof(linestream, "error reading CSV value @2");
   }
@@ -261,7 +261,7 @@ template<class... Fields>
 auto importCSV(DataFrame& frame, const std::string& filename) -> void
 {
   std::ifstream istream{filename};
-  
+
   importCSV<Fields...>(frame, istream);
 }
 
@@ -282,33 +282,33 @@ auto importCSV_rec(DataFrame& frame, const std::string& filename, std::tuple<Fie
 
 
 template <class ElemType>
-auto importCSV_variant( DataFrame& frame, 
-                        std::ifstream& is, 
+auto importCSV_variant( DataFrame& frame,
+                        std::ifstream& is,
                         const std::vector<std::function<ElemType(const std::string&)> >& adapt
                       ) -> void
 {
-  for (;;) 
+  for (;;)
   {
     std::string line = readStrLn(is, true);
-    
+
     // break on eof
     if (!is) break;
-    
+
     std::stringstream linestream{std::move(line)};
-      
-    frame.add_variant(readTupleVariant(linestream, adapt));
+
+    frame.add(readTupleVariant(linestream, adapt));
     csv_assertEof(linestream, "error reading CSV value @4");
   }
 }
-  
+
 template <class ElemType>
-auto importCSV_variant( DataFrame& frame, 
-                        const std::string& filename, 
+auto importCSV_variant( DataFrame& frame,
+                        const std::string& filename,
                         const std::vector<std::function<ElemType(const std::string&)> >& adapt
                       ) -> void
 {
   std::ifstream istream{filename};
-  
+
   importCSV_variant(frame, istream, adapt);
 }
 
@@ -317,11 +317,11 @@ template<class... Fields>
 auto exportCSV(const DataFrame& frame, std::ostream& os, const std::tuple<Fields...>* tag) -> void
 {
   const size_t rowlimit = frame.rows();
-  
+
   for (size_t row = 0; row < rowlimit; ++row)
   {
     std::tuple<Fields...> rec = frame.get_row(row, tag);
-    
+
     writeLn<Fields...>(os, std::move(rec), std::make_index_sequence<sizeof... (Fields)>());
   }
 }
@@ -330,7 +330,7 @@ template<class... Fields>
 auto exportCSV(const DataFrame& frame, const std::string& filename, const std::tuple<Fields...>* tag) -> void
 {
   std::ofstream ostream{filename};
-  
+
   exportCSV(frame, ostream, tag);
 }
 

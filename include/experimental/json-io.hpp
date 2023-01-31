@@ -55,6 +55,13 @@ namespace
     throw std::logic_error("unsupported json value conversion.");
   }
 
+  template <class T>
+  T extractValue(json_logic::ValueExpr&& val, T&& tag)
+  {
+    return json_logic::unpackValue<T>(std::move(val));
+  }
+
+
   void storeAtColumn( DataFrame& frame,
                       const ColumnVariant& coldesc,
                       dataframe_variant_t& cell,
@@ -82,6 +89,24 @@ namespace
     return res;
   }
 
+  auto toJson(const dataframe_variant_t& el) -> boost::json::value
+  {
+    if (const string_t* s = std::get_if<string_t>(&el))
+      return boost::json::value{ boost::string_view(&*s->begin(), s->size()) };
+
+    if (const int_t* i = std::get_if<int_t>(&el))
+      return boost::json::value{*i};
+
+    if (const real_t* r = std::get_if<real_t>(&el))
+      return boost::json::value{*r};
+
+    if (const uint_t* u = std::get_if<uint_t>(&el))
+      return boost::json::value{*u};
+
+    CXX_UNLIKELY;
+    return boost::json::value{};
+  }
+
   void injectValue(boost::json::object& o, const std::string& colname, const dataframe_variant_t& el)
   {
     if (std::get_if<notavail_t>(&el))
@@ -90,18 +115,27 @@ namespace
       return;
     }
 
-    boost::json::value& val = o[colname];
-
-    if (const int_t* i = std::get_if<int_t>(&el))
-      val = *i;
-    else if (const real_t* r = std::get_if<real_t>(&el))
-      val = *r;
-    else if (const uint_t* u = std::get_if<uint_t>(&el))
-      val = *u;
-    else if (const string_t* s = std::get_if<string_t>(&el))
-      val = boost::string_view(&*s->begin(), s->size());
+    o[colname] = toJson(el);
   }
 }
+
+inline
+void setCellValue(DataFrame& frame, const ColumnVariant& coldesc, std::int64_t row, json_logic::ValueExpr&& val)
+{
+  ColumnVariant::pointer_variant_t ptr = coldesc.at_variant(row);
+
+  if (string_t** s = std::get_if<string_t*>(&ptr))
+    **s = frame.persistent_string(extractValue(std::move(val), boost::json::string{}));
+  else if (int_t** i = std::get_if<int_t*>(&ptr))
+    **i = extractValue(std::move(val), std::int64_t{});
+  else if (uint_t** u = std::get_if<uint_t*>(&ptr))
+    **u = extractValue(std::move(val), std::uint64_t{});
+  else if (real_t** r = std::get_if<real_t*>(&ptr))
+    **r = extractValue(std::move(val), std::uint64_t{});
+  else
+    throw std::runtime_error{"unknown column type"};
+}
+
 
 void importJson(DataFrame& frame, const boost::json::value& val, bool useOtherColumn = true)
 {
@@ -140,8 +174,11 @@ void importJson(DataFrame& frame, const boost::json::value& val, bool useOtherCo
   frame.add(std::move(row));
 }
 
+//~ auto cellToJson(const dataframe_variant_t& el) -> boost::json::value
+//~ {
+  //~ return toJson(el);
+//~ }
 
-template<class... Fields>
 auto exportJson(const DataFrame& frame, const std::vector<std::string>& sel, std::size_t rownum) -> boost::json::object
 {
   boost::json::object              res;
@@ -154,7 +191,7 @@ auto exportJson(const DataFrame& frame, const std::vector<std::string>& sel, std
   {
     const std::string& colname = allColumnNames.at(idx);
 
-    if (colname != OTHER_COLUMN)
+    if (idx >= 0)
     {
       CXX_LIKELY;
       injectValue(res, colname, row.at(idx));
