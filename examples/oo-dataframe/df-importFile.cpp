@@ -33,7 +33,7 @@ struct ConverterFn<xpr::string_t>
 {
   xpr::dataframe_variant_t operator()(const std::string& s)
   {
-    return df->persistent_string(s);
+    return df->persistent_string_std(s);
   }
 
   xpr::DataFrame* df;

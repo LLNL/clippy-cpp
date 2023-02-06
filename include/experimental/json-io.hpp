@@ -71,7 +71,7 @@ namespace
     const std::string& celltype = coldesc.type_name();
 
     if (celltype == string_type_str)
-      cell = frame.persistent_string(extractValue(val, boost::json::string{}));
+      cell = frame.persistent_string_std(extractValue(val, boost::json::string{}));
     else if (celltype == int_type_str)
       cell = extractValue(val, std::int64_t{});
     else if (celltype == uint_type_str)
@@ -125,7 +125,7 @@ void setCellValue(DataFrame& frame, const ColumnVariant& coldesc, std::int64_t r
   ColumnVariant::pointer_variant_t ptr = coldesc.at_variant(row);
 
   if (string_t** s = std::get_if<string_t*>(&ptr))
-    **s = frame.persistent_string(extractValue(std::move(val), boost::json::string{}));
+    **s = frame.persistent_string_std(extractValue(std::move(val), boost::json::string{}));
   else if (int_t** i = std::get_if<int_t*>(&ptr))
     **i = extractValue(std::move(val), std::int64_t{});
   else if (uint_t** u = std::get_if<uint_t*>(&ptr))
@@ -168,7 +168,7 @@ void importJson(DataFrame& frame, const boost::json::value& val, bool useOtherCo
     std::stringstream out;
 
     out << other;
-    row.at(*colid) = frame.persistent_string(out.str());
+    row.at(*colid) = frame.persistent_string_std(out.str());
   }
 
   frame.add(std::move(row));

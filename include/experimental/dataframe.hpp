@@ -141,7 +141,7 @@ namespace
 
 [[noreturn]]
 inline
-void errTypeMismatch(std::string cell = {}, std::string xpct = {})
+void errTypeMismatch(std::string_view cell = {}, std::string_view xpct = {})
 {
   std::string err{"type mismatch:"};
 
@@ -1049,7 +1049,7 @@ struct DataFrame
 
     template <class StringT>
     string_t
-    persistent_string(const StringT& str) const
+    persistent_string_std(const StringT& str) const
     {
       return string_t{str.c_str(), str.size(), string_allocator()};
     }
@@ -1086,6 +1086,9 @@ struct DataFrame
       return res;
     }
 
+    /// returns the index list of columns in \ref colnames
+    /// \param  colnames  sequence of persistent strings referring to column-names
+    /// \return sequence of indices of column names in \ref colnames
     std::vector<int>
     get_index_list(const std::vector<string_t>& colnames) const
     {
@@ -1097,12 +1100,17 @@ struct DataFrame
       return res;
     }
 
+    /// returns the index list of columns in \ref colnames
+    /// \tparam StringT a convertible to std::string_view (e.g., std::string)
+    /// \param  colnames  sequence of column-names
+    /// \return sequence of indices of column names in \ref colnames
+    template <class StringT>
     std::vector<int>
-    get_index_list_std(const std::vector<std::string>& colnames) const
+    get_index_list_std(const std::vector<StringT>& colnames) const
     {
       std::vector<int> res;
 
-      for (const std::string& colname : colnames)
+      for (const StringT& colname : colnames)
       {
         try
         {
@@ -1174,9 +1182,10 @@ struct DataFrame
       (*allColNames)[name] = i;
     }
 
-    void name_column_std(size_t i, const std::string& name)
+    template <class StringT>
+    void name_column_std(size_t i, const StringT& name)
     {
-      name_column(i, persistent_string(name));
+      name_column(i, persistent_string_std(name));
     }
 
     void name_last_column(const string_t& name)
@@ -1188,7 +1197,8 @@ struct DataFrame
       name_column(idx, name);
     }
 
-    void name_last_column_std(const std::string& name)
+    template <class StringT>
+    void name_last_column_std(const StringT& name)
     {
       name_last_column(persistent_string(name));
     }
@@ -1198,7 +1208,8 @@ struct DataFrame
       name_columns_internal(names, &DataFrame::name_column);
     }
 
-    void name_columns_std(const std::vector<std::string>& names)
+    template <class StringT>
+    void name_columns_std(const std::vector<StringT>& names)
     {
       name_columns_internal(names, &DataFrame::name_column_std);
     }
@@ -1257,11 +1268,11 @@ struct DataFrame
       return get_dense_column<T>(colIdx(colname));
     }
 
-    template <class T>
+    template <class T, class StringT>
     std::pair<typename dense_vector_t<T>::iterator, typename dense_vector_t<T>::iterator>
-    get_dense_column_std(const std::string& colname) const
+    get_dense_column_std(const StringT& colname) const
     {
-      return get_dense_column<T>(colIdx(std::string_view{colname.begin(), colname.size()}));
+      return get_dense_column<T>(colIdx(colname));
     }
 
     template <class T>
@@ -1281,11 +1292,11 @@ struct DataFrame
       return get_sparse_column<T>(colIdx(colname));
     }
 
-    template <class T>
+    template <class T, class StringT>
     std::pair<typename sparse_vector_t<T>::iterator, typename sparse_vector_t<T>::iterator>
-    get_sparse_column_std(const std::string& colname) const
+    get_sparse_column_std(const StringT& colname) const
     {
-      return get_sparse_column<T>(colIdx(std::string_view{colname.begin(), colname.size()}));
+      return get_sparse_column<T>(colIdx(colname));
     }
 
     template <class T>
@@ -1305,11 +1316,11 @@ struct DataFrame
       // return get_sparse_column<T>(colIdx(colname));
     }
 
-    template <class T>
+    template <class T, class StringT>
     std::pair<AnyColumnIterator<T>, AnyColumnIterator<T> >
-    get_any_column_std(const std::string& colname) const
+    get_any_column_std(const StringT& colname) const
     {
-      return get_any_column<T>(colIdx(std::string_view{colname.begin(), colname.size()}));
+      return get_any_column<T>(colIdx(colname));
     }
 
     ColumnVariant
@@ -1326,8 +1337,9 @@ struct DataFrame
       return get_column_variant(colIdx(colname));
     }
 
+    template <class StringT>
     ColumnVariant
-    get_column_variant(const std::string& colname) const
+    get_column_variant_std(const StringT& colname) const
     {
       return get_column_variant(colIdx(colname));
     }
@@ -1342,6 +1354,20 @@ struct DataFrame
 
       return res;
     }
+
+
+    template <class StringT>
+    std::vector<ColumnVariant>
+    get_column_variants_std(const std::vector<StringT>& colnames) const
+    {
+      std::vector<ColumnVariant> res;
+
+      for (const StringT& col : colnames)
+        res.emplace_back(get_column_variant_std(col));
+
+      return res;
+    }
+
 
     std::vector<ColumnDesc>
     get_column_descriptors(const std::vector<int>& idxlst) const
@@ -1584,6 +1610,7 @@ struct DataFrame
     template <class ColType, class T, class CtorArg>
     void add_column_generic(T defaultval, CtorArg extra)
     {
+      // column_key := "key~num", where num is the index in allColumns
       std::string colkey{key};
 
       colkey.append('~', 1);
