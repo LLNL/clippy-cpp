@@ -2722,12 +2722,17 @@ namespace json_logic
   void Calculator::visit(DoubleVal& n) { _value(n); }
   void Calculator::visit(StringVal& n) { _value(n); }
 
-  ValueExpr calculate(AnyExpr& exp, const Calculator::VarAccess& vars)
+  ValueExpr calculate(Expr& exp, const Calculator::VarAccess& vars)
   {
     Calculator calc{vars, std::cerr};
 
+    return calc.eval(exp);
+  }
+
+  ValueExpr calculate(AnyExpr& exp, const Calculator::VarAccess& vars)
+  {
     assert(exp.get());
-    return calc.eval(*exp);
+    return calculate(*exp, vars);
   }
 
   ValueExpr calculate(AnyExpr& exp)
