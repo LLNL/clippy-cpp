@@ -15,7 +15,7 @@
 
 namespace json_logic
 {
-  constexpr bool DEBUG_OUTPUT    = true;
+  constexpr bool DEBUG_OUTPUT    = false;
 
   namespace json = boost::json;
 
@@ -972,6 +972,10 @@ namespace json_logic
   //
   // coercion functions
 
+  struct CoercionError {};
+  struct OutsideOfInt64Range  : CoercionError {};
+  struct OutsideOfUint64Range : CoercionError {};
+
   /// conversion to int64
   /// \{
   inline
@@ -995,6 +999,12 @@ namespace json_logic
   inline
   std::int64_t toConcreteValue(std::uint64_t v, const std::int64_t&)
   {
+    if (v > std::uint64_t(std::numeric_limits<std::int64_t>::max()))
+    {
+      CXX_UNLIKELY;
+      throw OutsideOfInt64Range{};
+    }
+
     return v;
   }
 
@@ -1022,6 +1032,12 @@ namespace json_logic
   inline
   std::uint64_t toConcreteValue(std::int64_t v, const std::uint64_t&)
   {
+    if (v < 0)
+    {
+      CXX_UNLIKELY;
+      throw OutsideOfUint64Range{};
+    }
+
     return v;
   }
 
@@ -1711,10 +1727,6 @@ namespace json_logic
   }
 
 
-
-
-
-
   template <class BinaryOperator, class LhsValue>
   struct BinaryOperatorVisitor_ : FwdVisitor
   {
@@ -1761,7 +1773,23 @@ namespace json_logic
       void visit(IntVal& n) final
       {
         if constexpr (BinaryOperator::definedForInteger)
-          return calc(&n.value());
+        {
+          try
+          {
+            return calc(&n.value());
+          }
+          catch (const OutsideOfInt64Range& ex)
+          {
+            if (n.value() < 0)
+            {
+              CXX_UNLIKELY;
+              throw std::range_error{"unable to consolidate uint>max(int) with int<0"};
+            }
+          }
+
+          std::uint64_t alt = n.value();
+          return calc(&alt);
+        }
 
         typeError();
       }
@@ -1769,7 +1797,23 @@ namespace json_logic
       void visit(UintVal& n) final
       {
         if constexpr (BinaryOperator::definedForInteger)
-          return calc(&n.value());
+        {
+          try
+          {
+            return calc(&n.value());
+          }
+          catch (const OutsideOfInt64Range& ex)
+          {
+            if (n.value() > std::uint64_t(std::numeric_limits<std::int64_t>::max))
+            {
+              CXX_UNLIKELY;
+              throw std::range_error{"unable to consolidate int<0 with uint>max(int)"};
+            }
+          }
+
+          std::int64_t alt = n.value();
+          return calc(&alt);
+        }
 
         typeError();
       }
@@ -1845,7 +1889,23 @@ namespace json_logic
       void visit(IntVal& n) final
       {
         if constexpr (BinaryOperator::definedForInteger)
-          return calc(&n.value());
+        {
+          try
+          {
+            return calc(&n.value());
+          }
+          catch (const OutsideOfInt64Range& ex)
+          {
+            if (n.value() < 0)
+            {
+              CXX_UNLIKELY;
+              throw std::range_error{"unable to consolidate int<0 with uint>max(int)"};
+            }
+          }
+
+          std::uint64_t alt = n.value();
+          return calc(&alt);
+        }
 
         typeError();
       }
@@ -1853,7 +1913,23 @@ namespace json_logic
       void visit(UintVal& n) final
       {
         if constexpr (BinaryOperator::definedForInteger)
-          return calc(&n.value());
+        {
+          try
+          {
+            return calc(&n.value());
+          }
+          catch (const OutsideOfInt64Range& ex)
+          {
+            if (n.value() > std::uint64_t(std::numeric_limits<std::int64_t>::max))
+            {
+              CXX_UNLIKELY;
+              throw std::range_error{"unable to consolidate uint>max(int) with int<0"};
+            }
+          }
+
+          std::int64_t alt = n.value();
+          return calc(&alt);
+        }
 
         typeError();
       }
