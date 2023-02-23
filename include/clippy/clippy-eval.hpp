@@ -293,7 +293,7 @@ namespace json_logic
 
 
   // string operations
-  struct Var       : OperatorN<1>
+  struct Var       : Operator
   {
       enum { computed = -1 };
 
@@ -917,7 +917,7 @@ namespace json_logic
   ValueExpr toValueExpr(double val)        { return ValueExpr(new DoubleVal(val)); }
   ValueExpr toValueExpr(json::string val)  { return ValueExpr(new StringVal(std::move(val))); }
 
-#if 0
+  CXX_MAYBE_UNUSED
   ValueExpr toValueExpr(const json::value& n)
   {
     ValueExpr res;
@@ -967,7 +967,6 @@ namespace json_logic
     assert(res.get());
     return res;
   }
-#endif
 
   //
   // coercion functions
@@ -1802,7 +1801,7 @@ namespace json_logic
           {
             return calc(&n.value());
           }
-          catch (const OutsideOfInt64Range& ex)
+          catch (const OutsideOfUint64Range& ex)
           {
             if (n.value() > std::uint64_t(std::numeric_limits<std::int64_t>::max))
             {
@@ -1918,7 +1917,7 @@ namespace json_logic
           {
             return calc(&n.value());
           }
-          catch (const OutsideOfInt64Range& ex)
+          catch (const OutsideOfUint64Range& ex)
           {
             if (n.value() > std::uint64_t(std::numeric_limits<std::int64_t>::max))
             {
@@ -2248,7 +2247,7 @@ namespace json_logic
   };
 
   template <>
-  struct Calc<In> : StringOperator // \todo the conversion rules differ is different from
+  struct Calc<In> : StringOperator // \todo the conversion rules differ
   {
     using StringOperator::result_type;
 
@@ -2262,7 +2261,7 @@ namespace json_logic
   };
 
   template <>
-  struct Calc<RegexMatch> : StringOperator // \todo the conversion rules differ is different from
+  struct Calc<RegexMatch> : StringOperator // \todo the conversion rules differ
   {
     using StringOperator::result_type;
 
@@ -2545,12 +2544,15 @@ namespace json_logic
 
     int            idx   = -1;
     ValueExpr      oper  = eval(n.operand(++idx));
+    //~ std::cerr << idx << ") " << oper << std::endl;
+
     bool           found = (idx == num-1) || (unpackValue<bool>(*oper) == val);
 
     // loop until *aa == val or when *aa is the last valid element
     while (!found)
     {
       oper = eval(n.operand(++idx));
+      //~ std::cerr << idx << ") " << oper << std::endl;
 
       found = (idx == (num-1)) || (unpackValue<bool>(*oper) == val);
     }
@@ -2699,7 +2701,7 @@ namespace json_logic
       cnt = std::max(std::int64_t(str.size()) - ofs + cnt, std::int64_t(0));
     }
 
-    calcres = toValueExpr(str.subview(ofs, cnt));
+    calcres = toValueExpr(json::string{str.subview(ofs, cnt)});
   }
 
   void Calculator::visit(Array& n)
@@ -2772,12 +2774,20 @@ namespace json_logic
 
   void Calculator::visit(Var& n)
   {
-    assert(n.num_evaluated_operands() == 1);
+    assert(n.num_evaluated_operands() >= 1);
 
     AnyExpr    elm = convert(eval(n.operand(0)), StringOperator{});
     StringVal& str = down_cast<StringVal>(*elm);
 
-    calcres = vars(str.value(), n.num());
+    try
+    {
+      calcres = vars(str.value(), n.num());
+    }
+    catch (...)
+    {
+      calcres = (n.num_evaluated_operands() > 1) ? eval(n.operand(1))
+                                                 : toValueExpr(nullptr);
+    }
   }
 
 
@@ -2816,41 +2826,49 @@ namespace json_logic
     return calculate(exp, [](const json::string&, int) -> ValueExpr { unsupported(); });
   }
 
-  std::ostream& operator<<(std::ostream& os, ValueExpr& n)
+  struct ValuePrinter : FwdVisitor
   {
-    struct ValuePrinter : FwdVisitor
-    {
-        explicit
-        ValuePrinter(std::ostream& stream)
-        : os(stream)
-        {}
+      explicit
+      ValuePrinter(std::ostream& stream)
+      : os(stream)
+      {}
 
-        void visit(NullVal&)     final { os << toConcreteValue(nullptr, json::string{}); }
-        void visit(BoolVal& n)   final { os << toConcreteValue(n.value(), json::string{}); }
-        void visit(IntVal& n)    final { os << n.value(); }
-        void visit(UintVal& n)   final { os << n.value(); }
-        void visit(DoubleVal& n) final { os << n.value(); }
-        void visit(StringVal& n) final { os << n.value(); }
+      template <class T>
+      void prn(const T& t)
+      {
+        json::value val = t;
 
-        void visit(Array& n)     final
+        os << val;
+      }
+
+      void visit(NullVal& n)   final { prn(n.value()); }
+      void visit(BoolVal& n)   final { prn(n.value()); }
+      void visit(IntVal& n)    final { prn(n.value()); }
+      void visit(UintVal& n)   final { prn(n.value()); }
+      void visit(DoubleVal& n) final { prn(n.value()); }
+      void visit(StringVal& n) final { prn(n.value()); }
+
+      void visit(Array& n)     final
+      {
+        bool first = true;
+
+        os << "[";
+        for (AnyExpr& el : n)
         {
-          bool first = true;
+          if (first) first = false; else os << ", ";
 
-          os << "[";
-          for (AnyExpr& el : n)
-          {
-            if (first) first = false; else os << ", ";
-
-            el->accept(*this);
-          }
-
-          os << "]";
+          el->accept(*this);
         }
 
-      private:
-        std::ostream& os;
-    };
+        os << "]";
+      }
 
+    private:
+      std::ostream& os;
+  };
+
+  std::ostream& operator<<(std::ostream& os, ValueExpr& n)
+  {
     ValuePrinter prn{os};
 
     n->accept(prn);
