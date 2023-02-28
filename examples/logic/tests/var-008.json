@@ -1,0 +1,3 @@
+{"rule":{"cat":["Hello,",{"var":""}]},"data":"Dolly","expected":"Hello,Dolly"}
+
+

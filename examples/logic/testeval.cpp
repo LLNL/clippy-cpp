@@ -127,27 +127,9 @@ int main(int argc, const char** argv)
   else
     dat.emplace_object();
 
-  //~ std::cout << val << " --> " << std::endl;
-  auto [ast, vars, hasComputed] = json_logic::translateNode(rule);
-
-  json_logic::Calculator::VarAccess varlookup =
-                          [data = dat.as_object()]
-                          (const json_logic::json::string& fld, int) -> json_logic::ValueExpr
-                          {
-                            if (!data.contains(fld)) throw fld;
-
-                            return json_logic::toValueExpr(data.at(fld));
-                          };
-
-  if (verbose)
-    std::cerr << "Ast has " << vars.size() << " free variables"
-              << (hasComputed ? ", and variables with computed names" : "")
-              << "."
-              << std::endl;
-
   try
   {
-    json_logic::ValueExpr res     = json_logic::calculate(ast, varlookup);
+    json_logic::ValueExpr res     = json_logic::apply(rule, dat);
 
     if (verbose)
       std::cerr << res << std::endl;

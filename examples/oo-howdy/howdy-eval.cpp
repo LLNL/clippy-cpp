@@ -51,7 +51,7 @@ int main(int argc, char** argv)
       {
         boostjsn::string elem(1, ch);
         jl::ValueExpr    val = jl::calculate( ast,
-                                              [&elem](const boostjsn::string&, int) -> jl::ValueExpr
+                                              [&elem](const boostjsn::value&, int) -> jl::ValueExpr
                                               {
                                                 return jl::toValueExpr(elem);
                                               }

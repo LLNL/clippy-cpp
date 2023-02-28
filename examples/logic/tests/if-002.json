@@ -1,0 +1,1 @@
+{"rule":{"if":[false,"yes","no"]},"expected":"no"}

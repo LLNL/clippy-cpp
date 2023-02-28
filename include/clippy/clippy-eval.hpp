@@ -47,6 +47,18 @@ namespace json_logic
     return *p;
   }
 
+  template <class Error = std::runtime_error, class T>
+  T& deref(std::unique_ptr<T>& p, const char* msg = "assertion failed")
+  {
+    if (p.get() == nullptr)
+    {
+      CXX_UNLIKELY;
+      throw Error{msg};
+    }
+
+    return *p;
+  }
+
   struct Visitor;
 
   // the root class
@@ -114,18 +126,25 @@ namespace json_logic
     int num_evaluated_operands() const final;
   };
 
-  template <class T>
   struct Value : Expr
+  {
+    virtual JsonExpr toJson() const = 0;
+  };
+
+  template <class T>
+  struct ValueT : Value
   {
       using value_type = T;
 
       explicit
-      Value(T t)
+      ValueT(T t)
       : val(std::move(t))
       {}
 
       T&       value()       { return val; }
       const T& value() const { return val; }
+
+      JsonExpr toJson() const final;
 
     private:
       T val;
@@ -324,48 +343,50 @@ namespace json_logic
   };
 
   // values
-  struct NullVal   : Expr
+  struct NullVal   : Value
   {
       void accept(Visitor&) final;
 
       std::nullptr_t value() const { return nullptr; }
+
+      JsonExpr       toJson() const final;
   };
 
-  struct BoolVal   : Value<bool>
+  struct BoolVal   : ValueT<bool>
   {
-      using base = Value<bool>;
+      using base = ValueT<bool>;
       using base::base;
 
       void accept(Visitor&) final;
   };
 
-  struct IntVal    : Value<std::int64_t>
+  struct IntVal    : ValueT<std::int64_t>
   {
-      using base = Value<std::int64_t>;
+      using base = ValueT<std::int64_t>;
       using base::base;
 
       void accept(Visitor&) final;
   };
 
-  struct UintVal   : Value<std::uint64_t>
+  struct UintVal   : ValueT<std::uint64_t>
   {
-      using base = Value<std::uint64_t>;
+      using base = ValueT<std::uint64_t>;
       using base::base;
 
       void accept(Visitor&) final;
   };
 
-  struct DoubleVal : Value<double>
+  struct DoubleVal : ValueT<double>
   {
-      using base = Value<double>;
+      using base = ValueT<double>;
       using base::base;
 
       void accept(Visitor&) final;
   };
 
-  struct StringVal : Value<json::string>
+  struct StringVal : ValueT<json::string>
   {
-      using base = Value<json::string>;
+      using base = ValueT<json::string>;
       using base::base;
 
       void accept(Visitor&) final;
@@ -451,6 +472,7 @@ namespace json_logic
     virtual void visit(If&)           = 0;
 
     // values
+    virtual void visit(Value&)        = 0;
     virtual void visit(NullVal&)      = 0;
     virtual void visit(BoolVal&)      = 0;
     virtual void visit(IntVal&)       = 0;
@@ -510,6 +532,11 @@ namespace json_logic
   void Error::accept(Visitor& v)      { v.visit(*this); }
   void RegexMatch::accept(Visitor& v) { v.visit(*this); }
 
+  // toJson implementations
+  template <class T>
+  JsonExpr ValueT<T>::toJson() const { return value(); }
+
+  JsonExpr NullVal::toJson()   const { return value(); }
 
   // num_evaluated_operands implementations
   int Operator::num_evaluated_operands() const
@@ -562,12 +589,13 @@ namespace json_logic
 
     void visit(If& n)         override { visit(up_cast<Expr>(n)); }
 
-    void visit(NullVal& n)    override { visit(up_cast<Expr>(n)); }
-    void visit(BoolVal& n)    override { visit(up_cast<Expr>(n)); }
-    void visit(IntVal& n)     override { visit(up_cast<Expr>(n)); }
-    void visit(UintVal& n)    override { visit(up_cast<Expr>(n)); }
-    void visit(DoubleVal& n)  override { visit(up_cast<Expr>(n)); }
-    void visit(StringVal& n)  override { visit(up_cast<Expr>(n)); }
+    void visit(Value& n)      override { visit(up_cast<Expr>(n)); }
+    void visit(NullVal& n)    override { visit(up_cast<Value>(n)); }
+    void visit(BoolVal& n)    override { visit(up_cast<Value>(n)); }
+    void visit(IntVal& n)     override { visit(up_cast<Value>(n)); }
+    void visit(UintVal& n)    override { visit(up_cast<Value>(n)); }
+    void visit(DoubleVal& n)  override { visit(up_cast<Value>(n)); }
+    void visit(StringVal& n)  override { visit(up_cast<Value>(n)); }
 
     void visit(Error& n)      override { visit(up_cast<Expr>(n)); }
 
@@ -619,6 +647,7 @@ namespace json_logic
 
       void visit(If& n)         final { self.gvisit(n); }
 
+      void visit(Value& n)      final { self.gvisit(n); }
       void visit(NullVal& n)    final { self.gvisit(n); }
       void visit(BoolVal& n)    final { self.gvisit(n); }
       void visit(IntVal& n)     final { self.gvisit(n); }
@@ -665,11 +694,17 @@ namespace json_logic
     {
       try
       {
-        AnyExpr&   arg = var.back();
-        StringVal& str = down_cast<StringVal>(*arg);
+        AnyExpr&   arg  = var.back();
+        StringVal& str  = down_cast<StringVal>(*arg);
+        const bool comp = (  str.value().find('.') != json::string::npos
+                          && str.value().find('[') != json::string::npos
+                          );
 
-        // do nothing for free variables in "lambdas"
-        if (str.value() != "")
+        if (comp)
+        {
+          hasComputed = true;
+        }
+        else if (str.value() != "") // do nothing for free variables in "lambdas"
         {
           auto [pos, success] = mapping.emplace(str.value(), mapping.size());
 
@@ -720,6 +755,14 @@ namespace json_logic
     Expr& mkOperator(json::object& n, VarMap& m)
     {
       return mkOperator_<ExprT>(n, m);
+    }
+
+    Expr& mkVar(json::object& n, VarMap& m)
+    {
+      Var& v = mkOperator_<Var>(n, m);
+
+      m.insert(v);
+      return v;
     }
 
     Array& mkArrayOperator(json::array& children, VarMap& m)
@@ -785,7 +828,7 @@ namespace json_logic
                                         { "in",     &mkOperator<In> },
                                         { "cat",    &mkOperator<Cat> },
                                         { "log",    &mkOperator<Log> },
-                                        { "var",    &mkOperator<Var> },
+                                        { "var",    &mkVar },
                                         /// extensions
                                         { "regex",  &mkOperator<RegexMatch> },
                                       };
@@ -803,9 +846,6 @@ namespace json_logic
             {
               CXX_LIKELY;
               res = &pos->second(obj, varmap);
-
-              if (pos->second == &mkOperator<Var>)
-                varmap.insert(down_cast<Var>(*res));
             }
             else
             {
@@ -2304,7 +2344,7 @@ namespace json_logic
 
   struct Calculator : FwdVisitor
   {
-      using VarAccess = std::function<ValueExpr(const json::string&, int)>;
+      using VarAccess = std::function<ValueExpr(const json::value&, int)>;
 
       Calculator(VarAccess varAccess, std::ostream& out)
       : vars(std::move(varAccess)), logger(out), calcres(nullptr)
@@ -2342,6 +2382,8 @@ namespace json_logic
       void visit(In&)           final;
       void visit(Var&)          final;
       void visit(Log&)          final;
+
+      void visit(If&)           final;
 
       void visit(NullVal& n)    final;
       void visit(BoolVal& n)    final;
@@ -2409,18 +2451,24 @@ namespace json_logic
         ValueExpr* elptr = &elem; // workaround, since I am unable to capture a unique_ptr
 
         Calculator sub{ [elptr]
-                        (const json::string& key, int) mutable -> ValueExpr
+                        (const json::value& keyval, int) mutable -> ValueExpr
                         {
-                          if (key.size() == 0) return std::move(*elptr);
-
-                          try
+                          if (const json::string* pkey = keyval.if_string())
                           {
-                            ObjectVal& o = down_cast<ObjectVal>(**elptr);
+                            const json::string& key = *pkey;
 
-                            if (auto pos = o.find(key); pos != o.end())
-                              return std::move(pos->second);
+                            if (key.size() == 0) return std::move(*elptr);
+
+                            try
+                            {
+                              ObjectVal& o = down_cast<ObjectVal>(**elptr);
+
+                              if (auto pos = o.find(key); pos != o.end())
+                                return std::move(pos->second);
+                            }
+                            catch (const cast_error&) {}
                           }
-                          catch (const cast_error&) {}
+
 
                           return toValueExpr(nullptr);
                         },
@@ -2449,14 +2497,14 @@ namespace json_logic
     return unpackValue<ValueT>(*eval(n.operand(argpos)));
   }
 
-  template <class UnaryOperator>
+  template <class UnaryPredicate>
   void
-  Calculator::unary(Operator& n, UnaryOperator calc)
+  Calculator::unary(Operator& n, UnaryPredicate pred)
   {
     const int  num = n.num_evaluated_operands();
     assert(num == 1);
 
-    const bool res = calc(*eval(n.operand(0)));
+    const bool res = pred(*eval(n.operand(0)));
 
     calcres = toValueExpr(res);
   }
@@ -2776,18 +2824,45 @@ namespace json_logic
   {
     assert(n.num_evaluated_operands() >= 1);
 
-    AnyExpr    elm = convert(eval(n.operand(0)), StringOperator{});
-    StringVal& str = down_cast<StringVal>(*elm);
+    AnyExpr elm = eval(n.operand(0));
+    Value&  val = down_cast<Value>(*elm);
 
     try
     {
-      calcres = vars(str.value(), n.num());
+      calcres = vars(val.toJson(), n.num());
     }
     catch (...)
     {
       calcres = (n.num_evaluated_operands() > 1) ? eval(n.operand(1))
                                                  : toValueExpr(nullptr);
     }
+  }
+
+  void Calculator::visit(If& n)
+  {
+    const int num = n.num_evaluated_operands();
+
+    if (num == 0)
+    {
+      calcres = toValueExpr(nullptr);
+      return;
+    }
+
+    const int lim = num-1;
+    int       pos = 0;
+
+    while (pos < lim)
+    {
+      if (unpackValue<bool>(eval(n.operand(pos))))
+      {
+        calcres = eval(n.operand(pos+1));
+        return;
+      }
+
+      pos+=2;
+    }
+
+    calcres = (pos < num) ? eval(n.operand(pos)) : toValueExpr(nullptr);
   }
 
 
@@ -2808,6 +2883,7 @@ namespace json_logic
   void Calculator::visit(DoubleVal& n) { _value(n); }
   void Calculator::visit(StringVal& n) { _value(n); }
 
+  CXX_MAYBE_UNUSED
   ValueExpr calculate(Expr& exp, const Calculator::VarAccess& vars)
   {
     Calculator calc{vars, std::cerr};
@@ -2815,15 +2891,67 @@ namespace json_logic
     return calc.eval(exp);
   }
 
+  CXX_MAYBE_UNUSED
   ValueExpr calculate(AnyExpr& exp, const Calculator::VarAccess& vars)
   {
     assert(exp.get());
     return calculate(*exp, vars);
   }
 
+  CXX_MAYBE_UNUSED
   ValueExpr calculate(AnyExpr& exp)
   {
-    return calculate(exp, [](const json::string&, int) -> ValueExpr { unsupported(); });
+    return calculate(exp, [](const json::value&, int) -> ValueExpr { unsupported(); });
+  }
+
+
+  ValueExpr evalPath(const json::string& path, const json::object& obj)
+  {
+    if (auto pos = obj.find(path); pos != obj.end())
+      return json_logic::toValueExpr(pos->value());
+
+    if (std::size_t pos = path.find('.'); pos != json::string::npos)
+    {
+      json::string selector = path.subview(0, pos);
+      json::string suffix   = path.subview(pos+1);
+
+      return evalPath(suffix, obj.at(selector).as_object());
+    }
+
+    throw std::out_of_range("json_logic - unable to locate path");
+  }
+
+  template <class IntT>
+  ValueExpr evalIdx(IntT idx, const json::array& arr)
+  {
+    return json_logic::toValueExpr(arr[idx]);
+  }
+
+
+  CXX_MAYBE_UNUSED
+  ValueExpr apply(json::value rule, json::value data)
+  {
+    auto [ast, vars, hasComputed] = translateNode(rule);
+    Calculator::VarAccess varlookup =
+                          [data]
+                          (const json::value& keyval, int) -> ValueExpr
+                          {
+                            if (const json::string* ppath = keyval.if_string())
+                            {
+                              return ppath->size() ? evalPath(*ppath, data.as_object())
+                                                   : json_logic::toValueExpr(data);
+                            }
+
+                            if (const std::int64_t* pidx = keyval.if_int64())
+                              return evalIdx(*pidx, data.as_array());
+
+                            if (const std::uint64_t* pidx = keyval.if_uint64())
+                              return evalIdx(*pidx, data.as_array());
+
+                            throw std::logic_error{"json_logic - unsupported var access"};
+                          };
+
+    return calculate(ast, varlookup);
   }
 
   struct ValuePrinter : FwdVisitor
@@ -2833,22 +2961,17 @@ namespace json_logic
       : os(stream)
       {}
 
-      template <class T>
-      void prn(const T& t)
+      void prn(json::value val)
       {
-        json::value val = t;
-
         os << val;
       }
 
-      void visit(NullVal& n)   final { prn(n.value()); }
-      void visit(BoolVal& n)   final { prn(n.value()); }
-      void visit(IntVal& n)    final { prn(n.value()); }
-      void visit(UintVal& n)   final { prn(n.value()); }
-      void visit(DoubleVal& n) final { prn(n.value()); }
-      void visit(StringVal& n) final { prn(n.value()); }
+      void visit(Value& n) final
+      {
+        prn(n.toJson());
+      }
 
-      void visit(Array& n)     final
+      void visit(Array& n) final
       {
         bool first = true;
 
@@ -2857,7 +2980,7 @@ namespace json_logic
         {
           if (first) first = false; else os << ", ";
 
-          el->accept(*this);
+          deref(el).accept(*this);
         }
 
         os << "]";
@@ -2871,7 +2994,7 @@ namespace json_logic
   {
     ValuePrinter prn{os};
 
-    n->accept(prn);
+    deref(n).accept(prn);
     return os;
   }
 }
