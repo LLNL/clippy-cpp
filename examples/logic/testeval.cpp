@@ -80,12 +80,22 @@ bool matchOpt0(const std::vector<std::string>& args, N& pos, std::string opt, Fn
   return true;
 }
 
-template <class N>
-bool unmatched(const std::vector<std::string>& args, N& pos)
+template <class N, class Fn>
+bool noSwitch0(const std::vector<std::string>& args, N& pos, Fn /*fn*/)
 {
+  //~ if (fn(args[pos]))
+    //~ return true;
+
   std::cerr << "unrecognized argument: " << args[pos] << std::endl;
   ++pos;
-  return true;
+  return false;
+}
+
+bool endsWith(const std::string& str, const std::string& suffix)
+{
+  return (  str.size() >= suffix.size()
+         && std::equal(suffix.rbegin(), suffix.rend(), str.rbegin())
+         );
 }
 
 
@@ -98,10 +108,19 @@ int main(int argc, const char** argv)
 
   int                        errorCode = 0;
   std::vector<std::string>   arguments(argv, argv+argc);
+  std::string                filename;
   size_t                     argn = 1;
 
   auto setVerbose = [&verbose]()     -> void { verbose     = true; };
   auto setResult  = [&genExpected]() -> void { genExpected = true; };
+  auto setFile    = [&filename](const std::string& name) -> bool
+  {
+    const bool jsonFile = endsWith(name, ".json");
+
+    if (jsonFile) filename = name;
+
+    return jsonFile;
+  };
 
   while (argn < arguments.size())
   {
@@ -110,9 +129,11 @@ int main(int argc, const char** argv)
     || matchOpt0(arguments, argn, "--verbose", setVerbose)
     || matchOpt0(arguments, argn, "-r",        setResult)
     || matchOpt0(arguments, argn, "--result",  setResult)
-    || unmatched(arguments, argn)
+    || noSwitch0(arguments, argn,              setFile)
     ;
   }
+
+
 
   bjsn::value   all         = parseStream(std::cin);
   bjsn::object& allobj      = all.as_object();
@@ -143,8 +164,6 @@ int main(int argc, const char** argv)
       allobj["expected"] = parseStream(resStream);
 
       if (verbose) std::cerr << allobj["expected"] << std::endl;
-
-      std::cout << allobj << std::endl;
     }
     else if (hasExpected)
     {
@@ -161,13 +180,23 @@ int main(int argc, const char** argv)
                   << "\n  got: " << resStream.str()
                   << std::endl;
     }
+    else
+    {
+      errorCode = 1;
+
+      if (verbose)
+        std::cerr << "unexpected completion, result: " << res << std::endl;
+    }
   }
   catch (const std::exception& ex)
   {
     if (verbose)
       std::cerr << "caught error: " << ex.what() << std::endl;
 
-    errorCode = 1;
+    if (genExpected)
+      allobj.erase("expected");
+    else if (hasExpected)
+      errorCode = 1;
   }
   catch (...)
   {
@@ -176,6 +205,9 @@ int main(int argc, const char** argv)
 
     errorCode = 1;
   }
+
+  if (genExpected && (errorCode == 0))
+    std::cout << allobj << std::endl;
 
   if (verbose && errorCode)
     std::cerr << "errorCode: " << errorCode << std::endl;

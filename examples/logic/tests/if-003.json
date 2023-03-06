@@ -1,2 +1,2 @@
-{"rule": {"if" : [{"<": [{"var":"temp"}, 0] }, "freezing",{"<": [{"var":"temp"}, 100] }, "liquid","gas"]}, "data":{"temp":55}}
+{"rule":{"if":[{"<":[{"var":"temp"},0]},"freezing",{"<":[{"var":"temp"},100]},"liquid","gas"]},"data":{"temp":55},"expected":"liquid"}
 

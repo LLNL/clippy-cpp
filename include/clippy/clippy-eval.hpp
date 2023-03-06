@@ -553,7 +553,7 @@ namespace json_logic
   struct FwdVisitor : Visitor
   {
     void visit(Expr&)         override {} // error
-    void visit(Operator& n)   override { visit(up_cast<Operator>(n)); }
+    void visit(Operator& n)   override { visit(up_cast<Expr>(n)); }
     void visit(Eq& n)         override { visit(up_cast<Operator>(n)); }
     void visit(StrictEq& n)   override { visit(up_cast<Operator>(n)); }
     void visit(Neq& n)        override { visit(up_cast<Operator>(n)); }
@@ -675,6 +675,12 @@ namespace json_logic
     void typeError()
     {
       throw std::runtime_error("typing error");
+    }
+
+    CXX_NORETURN
+    void requiresArgumentError()
+    {
+      throw std::runtime_error("insufficient arguments");
     }
 
     struct VarMap
@@ -1080,17 +1086,6 @@ namespace json_logic
     return v;
   }
 
-  inline
-  std::uint64_t toConcreteValue(std::uint64_t v, const std::uint64_t&)
-  {
-    return v;
-  }
-
-  inline
-  std::uint64_t toConcreteValue(bool b, const std::uint64_t&)
-  {
-    return b;
-  }
   /// \}
 
   /// conversion to double
@@ -1114,7 +1109,19 @@ namespace json_logic
   }
 
   inline
+  std::uint64_t toConcreteValue(bool b, const std::uint64_t&)
+  {
+    return b;
+  }
+
+  inline
   double toConcreteValue(double val, const double&)
+  {
+    return val;
+  }
+
+  inline
+  double toConcreteValue(bool val, const double&)
   {
     return val;
   }
@@ -1150,34 +1157,35 @@ namespace json_logic
 
 
   /// conversion to boolean
+  ///   implements truthy, falsy as described by https://jsonlogic.com/truthy.html
   /// \{
   inline bool toConcreteValue(std::int64_t v, const bool&)        { return v; }
   inline bool toConcreteValue(std::uint64_t v, const bool&)       { return v; }
   inline bool toConcreteValue(double v, const bool&)              { return v; }
   inline bool toConcreteValue(const json::string& v, const bool&) { return v.size() != 0; }
-  inline bool toConcreteValue(Array& v, const bool&)              { return v.num_evaluated_operands(); }
+  inline bool toConcreteValue(const Array& v, const bool&)        { return v.num_evaluated_operands(); }
   /// \}
 
-
-  struct LogicalOperatorBase
+  template <bool WithArray>
+  struct ComparisonOperatorBase
   {
     enum
     {
       definedForString  = true,
       definedForDouble  = true,
       definedForInteger = true,
-      definedForBool    = false,
-      definedForNull    = false,
-      definedForArray   = false
+      definedForBool    = true,
+      definedForNull    = false,     // \todo should be true
+      definedForArray   = WithArray  // \todo should be true
     };
 
     using result_type   = bool;
   };
 
-  /// \brief a strict binary operator operates on operands of the same
+  /// \brief a strict equality operator operates on operands of the same
   ///        type. The operation on two different types returns false.
   ///        NO type coercion is performed.
-  struct StrictLogicalBinaryOperator : LogicalOperatorBase
+  struct StrictEqualityOperator : ComparisonOperatorBase<false>
   {
     template <class LhsT, class RhsT>
     std::tuple<LhsT, RhsT>
@@ -1245,15 +1253,21 @@ namespace json_logic
   };
 
 
-  /// \brief a logical binary operator compares two values. If the
+  /// \brief an equality operator compares two values. If the
   ///        values have a different type, type coercion is performed
   ///        on one of the operands.
-  struct LogicalBinaryOperator : NumericBinaryOperatorBase, LogicalOperatorBase
+  struct RelationalOperatorBase : NumericBinaryOperatorBase
   {
     using NumericBinaryOperatorBase::coerce;
 
     std::tuple<double, double>
     coerce(double* lv, json::string* rv)
+    {
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+    }
+
+    std::tuple<double, double>
+    coerce(double* lv, bool* rv)
     {
       return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
     }
@@ -1264,8 +1278,20 @@ namespace json_logic
       return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
     }
 
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(std::int64_t* lv, bool* rv)
+    {
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+    }
+
     std::tuple<std::uint64_t, std::uint64_t>
     coerce(std::uint64_t* lv, json::string* rv)
+    {
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+    }
+
+    std::tuple<std::uint64_t, std::uint64_t>
+    coerce(std::uint64_t* lv, bool* rv)
     {
       return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
     }
@@ -1276,8 +1302,20 @@ namespace json_logic
       return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
     }
 
+    std::tuple<double, double>
+    coerce(bool* lv, double* rv)
+    {
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+    }
+
     std::tuple<std::int64_t, std::int64_t>
     coerce(json::string* lv, std::int64_t* rv)
+    {
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+    }
+
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(bool* lv, std::int64_t* rv)
     {
       return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
     }
@@ -1288,12 +1326,100 @@ namespace json_logic
       return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
     }
 
+    std::tuple<std::uint64_t, std::uint64_t>
+    coerce(bool* lv, std::uint64_t* rv)
+    {
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+    }
+
+    std::tuple<bool, bool>
+    coerce(json::string*, bool* rv)
+    {
+      // strings and boolean are never equal
+      return std::make_tuple(!*rv, *rv);
+    }
+
+    std::tuple<bool, bool>
+    coerce(bool* lv, json::string*)
+    {
+      // strings and boolean are never equal
+      return std::make_tuple(*lv, !*lv);
+    }
+
     std::tuple<json::string, json::string>
     coerce(json::string* lv, json::string* rv)
     {
       return std::make_tuple(std::move(*lv), std::move(*rv));
     }
+
+    std::tuple<bool, bool>
+    coerce(bool* lv, bool* rv)
+    {
+      return std::make_tuple(*lv, *rv);
+    }
   };
+
+  struct EqualityOperator   : RelationalOperatorBase, ComparisonOperatorBase<false>
+  {
+/*
+    std::tuple<bool, bool>
+    coerce(Array* lv, Array* rv)
+    {
+      return std::make_tuple(true, false); // arrays are never equal
+    }
+
+    std::tuple<bool, bool>
+    coerce(bool* lv, Array* rv)
+    {
+      return std::make_tuple(*lv, rv->num_evaluated_operands() > 0); // arrays are never equal
+    }
+
+    std::tuple<bool, bool>
+    coerce(Array* lv, bool* rv)
+    {
+      return std::make_tuple(rv->num_evaluated_operands() > 0, *rv); // arrays are never equal
+    }
+
+    std::tuple<bool, bool>
+    coerce(double* lv, Array* rv)
+    {
+      return std::make_tuple(true, false);
+    }
+
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(std::int64_t* lv, Array* rv)
+    {
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+    }
+
+    std::tuple<std::uint64_t, std::uint64_t>
+    coerce(std::uint64_t* lv, Array* rv)
+    {
+      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+    }
+
+    std::tuple<double, double>
+    coerce(Array* lv, double* rv)
+    {
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+    }
+
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(Array*, std::int64_t* rv)
+    {
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+    }
+
+    std::tuple<std::uint64_t, std::uint64_t>
+    coerce(Array*, std::uint64_t* rv)
+    {
+      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+    }
+*/
+  };
+
+  struct RelationalOperator : RelationalOperatorBase, ComparisonOperatorBase<false>
+  {};
   // @}
 
   // Arith
@@ -1649,12 +1775,12 @@ namespace json_logic
         assign(res, el.value());
       }
 
-      void visit(IntVal& el)    final
+      void visit(IntVal& el) final
       {
         assign(res, el.value());
       }
 
-      void visit(UintVal& el)   final
+      void visit(UintVal& el) final
       {
         assign(res, el.value());
       }
@@ -1664,9 +1790,17 @@ namespace json_logic
         assign(res, el.value());
       }
 
-      void visit(NullVal& el)      final
+      void visit(NullVal& el) final
       {
         assign(res, el.value());
+      }
+
+      void visit(Array& el) final
+      {
+        if constexpr (std::is_same<ValueT, bool>::value)
+          return assign(res, el);
+
+        typeError();
       }
 
       ValueT result() && { return std::move(res); }
@@ -2017,9 +2151,9 @@ namespace json_logic
 
 
   template <>
-  struct Calc<Eq> : LogicalBinaryOperator
+  struct Calc<Eq> : EqualityOperator
   {
-    using LogicalBinaryOperator::result_type;
+    using EqualityOperator::result_type;
 
     template <class T>
     result_type
@@ -2030,9 +2164,9 @@ namespace json_logic
   };
 
   template <>
-  struct Calc<Neq> : LogicalBinaryOperator
+  struct Calc<Neq> : EqualityOperator
   {
-    using LogicalBinaryOperator::result_type;
+    using EqualityOperator::result_type;
 
     template <class T>
     result_type
@@ -2043,9 +2177,9 @@ namespace json_logic
   };
 
   template <>
-  struct Calc<StrictEq> : StrictLogicalBinaryOperator
+  struct Calc<StrictEq> : StrictEqualityOperator
   {
-    using StrictLogicalBinaryOperator::result_type;
+    using StrictEqualityOperator::result_type;
 
     result_type operator()(...) const { return false; } // type mismatch
 
@@ -2058,24 +2192,24 @@ namespace json_logic
   };
 
   template <>
-  struct Calc<StrictNeq> : StrictLogicalBinaryOperator
+  struct Calc<StrictNeq> : StrictEqualityOperator
   {
-    using StrictLogicalBinaryOperator::result_type;
+    using StrictEqualityOperator::result_type;
 
-    result_type operator()(...) const { return false; } // type mismatch
+    result_type operator()(...) const { return true; } // type mismatch
 
     template <class T>
     result_type
     operator()(const T& lhs, const T& rhs) const
     {
-      return lhs == rhs;
+      return lhs != rhs;
     }
   };
 
   template <>
-  struct Calc<Less> : LogicalBinaryOperator
+  struct Calc<Less> : RelationalOperator
   {
-    using LogicalBinaryOperator::result_type;
+    using RelationalOperator::result_type;
 
     template <class T>
     result_type
@@ -2086,9 +2220,9 @@ namespace json_logic
   };
 
   template <>
-  struct Calc<Greater> : LogicalBinaryOperator
+  struct Calc<Greater> : RelationalOperator
   {
-    using LogicalBinaryOperator::result_type;
+    using RelationalOperator::result_type;
 
     template <class T>
     result_type
@@ -2099,9 +2233,9 @@ namespace json_logic
   };
 
   template <>
-  struct Calc<Leq> : LogicalBinaryOperator
+  struct Calc<Leq> : RelationalOperator
   {
-    using LogicalBinaryOperator::result_type;
+    using RelationalOperator::result_type;
 
     template <class T>
     result_type
@@ -2112,9 +2246,9 @@ namespace json_logic
   };
 
   template <>
-  struct Calc<Geq> : LogicalBinaryOperator
+  struct Calc<Geq> : RelationalOperator
   {
-    using LogicalBinaryOperator::result_type;
+    using RelationalOperator::result_type;
 
     template <class T>
     result_type
@@ -2588,7 +2722,8 @@ namespace json_logic
   Calculator::evalShortCircuit(Operator& n, bool val)
   {
     const int      num = n.num_evaluated_operands();
-    assert(num >= 1);
+
+    if (num == 0) { CXX_UNLIKELY; requiresArgumentError(); }
 
     int            idx   = -1;
     ValueExpr      oper  = eval(n.operand(++idx));
