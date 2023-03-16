@@ -1,1 +1,1 @@
-{"rule":{"!!":[ 0 ]},"expected":false}
+{"rule":{"!!":[ null ]},"expected":false}

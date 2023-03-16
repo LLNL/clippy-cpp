@@ -926,7 +926,7 @@ namespace json_logic
       AnyExpr node = translateNode_internal(n, varmap);
       bool    hasComputedVariables = varmap.hasComputedVariables();
 
-      return std::make_tuple(std::move(node), varmap.toVector(), hasComputedVariables);
+      return { std::move(node), varmap.toVector(), hasComputedVariables };
     }
 
     Operator::container_type
@@ -1064,6 +1064,12 @@ namespace json_logic
   {
     return v;
   }
+
+  inline
+  std::int64_t toConcreteValue(std::nullptr_t, const std::int64_t&)
+  {
+    return 0;
+  }
   /// \}
 
   /// conversion to uint64
@@ -1090,6 +1096,12 @@ namespace json_logic
     }
 
     return v;
+  }
+
+  inline
+  std::uint64_t toConcreteValue(std::nullptr_t, const std::uint64_t&)
+  {
+    return 0;
   }
 
   /// \}
@@ -1131,6 +1143,12 @@ namespace json_logic
   {
     return val;
   }
+
+  inline
+  double toConcreteValue(std::nullptr_t, const double&)
+  {
+    return 0;
+  }
   /// \}
 
   /// conversion to string
@@ -1170,6 +1188,7 @@ namespace json_logic
   inline bool toConcreteValue(double v, const bool&)              { return v; }
   inline bool toConcreteValue(const json::string& v, const bool&) { return v.size() != 0; }
   inline bool toConcreteValue(const Array& v, const bool&)        { return v.num_evaluated_operands(); }
+  inline bool toConcreteValue(std::nullptr_t, const bool&)        { return false; }
   /// \}
 
   template <bool WithNull, bool WithArray>
@@ -1197,27 +1216,27 @@ namespace json_logic
     std::tuple<LhsT, RhsT>
     coerce(LhsT* lv, RhsT* rv)
     {
-      return std::make_tuple(std::move(*lv), std::move(*rv));
+      return { std::move(*lv), std::move(*rv) };
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
-    coerce(std::nullptr_t lv, std::nullptr_t rv)
+    coerce(std::nullptr_t, std::nullptr_t)
     {
-      return std::make_tuple(lv, rv); // two null pointers are equal
+      return { nullptr, nullptr }; // two null pointers are equal
     }
 
     template <class LhsT>
     std::tuple<LhsT, std::nullptr_t>
     coerce(LhsT* lv, std::nullptr_t)
     {
-      return std::make_tuple(std::move(*lv), nullptr);
+      return { std::move(*lv), nullptr };
     }
 
     template <class RhsT>
     std::tuple<std::nullptr_t, RhsT>
     coerce(std::nullptr_t, RhsT* rv)
     {
-      return std::make_tuple(nullptr, std::move(*rv));
+      return { nullptr, std::move(*rv) };
     }
   };
 
@@ -1226,55 +1245,55 @@ namespace json_logic
     std::tuple<double, double>
     coerce(double* lv, double* rv)
     {
-      return std::make_tuple(*lv, *rv);
+      return { *lv, *rv };
     }
 
     std::tuple<double, double>
     coerce(double* lv, std::int64_t* rv)
     {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+      return { *lv, toConcreteValue(*rv, *lv) };
     }
 
     std::tuple<double, double>
     coerce(double* lv, std::uint64_t* rv)
     {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+      return { *lv, toConcreteValue(*rv, *lv) };
     }
 
     std::tuple<double, double>
     coerce(std::int64_t* lv, double* rv)
     {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+      return { toConcreteValue(*lv, *rv), *rv };
     }
 
     std::tuple<std::int64_t, std::int64_t>
     coerce(std::int64_t* lv, std::int64_t* rv)
     {
-      return std::make_tuple(*lv, *rv);
+      return { *lv, *rv };
     }
 
     std::tuple<std::int64_t, std::int64_t>
     coerce(std::int64_t* lv, std::uint64_t* rv)
     {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+      return { *lv, toConcreteValue(*rv, *lv) };
     }
 
     std::tuple<double, double>
     coerce(std::uint64_t* lv, double* rv)
     {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+      return { toConcreteValue(*lv, *rv), *rv };
     }
 
     std::tuple<std::int64_t, std::int64_t>
     coerce(std::uint64_t* lv, std::int64_t* rv)
     {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+      return { toConcreteValue(*lv, *rv), *rv };
     }
 
     std::tuple<std::uint64_t, std::uint64_t>
     coerce(std::uint64_t* lv, std::uint64_t* rv)
     {
-      return std::make_tuple(*lv, *rv);
+      return { *lv, *rv };
     }
   };
 
@@ -1289,99 +1308,99 @@ namespace json_logic
     std::tuple<double, double>
     coerce(double* lv, json::string* rv)
     {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+      return { *lv, toConcreteValue(*rv, *lv) };
     }
 
     std::tuple<double, double>
     coerce(double* lv, bool* rv)
     {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+      return { *lv, toConcreteValue(*rv, *lv) };
     }
 
     std::tuple<std::int64_t, std::int64_t>
     coerce(std::int64_t* lv, json::string* rv)
     {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+      return { *lv, toConcreteValue(*rv, *lv) };
     }
 
     std::tuple<std::int64_t, std::int64_t>
     coerce(std::int64_t* lv, bool* rv)
     {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+      return { *lv, toConcreteValue(*rv, *lv) };
     }
 
     std::tuple<std::uint64_t, std::uint64_t>
     coerce(std::uint64_t* lv, json::string* rv)
     {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+      return { *lv, toConcreteValue(*rv, *lv) };
     }
 
     std::tuple<std::uint64_t, std::uint64_t>
     coerce(std::uint64_t* lv, bool* rv)
     {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
+      return { *lv, toConcreteValue(*rv, *lv) };
     }
 
     std::tuple<double, double>
     coerce(json::string* lv, double* rv)
     {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+      return { toConcreteValue(*lv, *rv), *rv };
     }
 
     std::tuple<double, double>
     coerce(bool* lv, double* rv)
     {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+      return { toConcreteValue(*lv, *rv), *rv };
     }
 
     std::tuple<std::int64_t, std::int64_t>
     coerce(json::string* lv, std::int64_t* rv)
     {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+      return { toConcreteValue(*lv, *rv), *rv };
     }
 
     std::tuple<std::int64_t, std::int64_t>
     coerce(bool* lv, std::int64_t* rv)
     {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+      return { toConcreteValue(*lv, *rv), *rv };
     }
 
     std::tuple<std::uint64_t, std::uint64_t>
     coerce(json::string* lv, std::uint64_t* rv)
     {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+      return { toConcreteValue(*lv, *rv), *rv };
     }
 
     std::tuple<std::uint64_t, std::uint64_t>
     coerce(bool* lv, std::uint64_t* rv)
     {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+      return { toConcreteValue(*lv, *rv), *rv };
     }
 
     std::tuple<bool, bool>
     coerce(json::string*, bool* rv)
     {
       // strings and boolean are never equal
-      return std::make_tuple(!*rv, *rv);
+      return { !*rv, *rv };
     }
 
     std::tuple<bool, bool>
     coerce(bool* lv, json::string*)
     {
       // strings and boolean are never equal
-      return std::make_tuple(*lv, !*lv);
+      return { *lv, !*lv };
     }
 
     std::tuple<json::string, json::string>
     coerce(json::string* lv, json::string* rv)
     {
-      return std::make_tuple(std::move(*lv), std::move(*rv));
+      return { std::move(*lv), std::move(*rv) };
     }
 
     std::tuple<bool, bool>
     coerce(bool* lv, bool* rv)
     {
-      return std::make_tuple(*lv, *rv);
+      return { *lv, *rv };
     }
   };
 
@@ -1446,23 +1465,23 @@ namespace json_logic
 */
 
     std::tuple<std::nullptr_t, std::nullptr_t>
-    coerce(std::nullptr_t lv, std::nullptr_t rv)
+    coerce(std::nullptr_t, std::nullptr_t)
     {
-      return std::make_tuple(lv, rv); // two null pointers are equal
+      return { nullptr, nullptr }; // two null pointers are equal
     }
 
     template <class T>
     std::tuple<bool, bool>
     coerce(T*, std::nullptr_t)
     {
-      return std::make_tuple(false, true); // null pointer is only equal to itself
+      return { false, true }; // null pointer is only equal to itself
     }
 
     template <class T>
     std::tuple<bool, bool>
     coerce(std::nullptr_t, T*)
     {
-      return std::make_tuple(true, false); // null pointer is only equal to itself
+      return { true, false }; // null pointer is only equal to itself
     }
 
     //~ std::tuple<bool, bool>
@@ -1472,8 +1491,76 @@ namespace json_logic
     //~ }
   };
 
-  struct RelationalOperator : RelationalOperatorBase, ComparisonOperatorBase<false, false>
-  {};
+  struct RelationalOperator : RelationalOperatorBase, ComparisonOperatorBase<true, false>
+  {
+    using RelationalOperatorBase::coerce;
+
+    std::tuple<std::nullptr_t, std::nullptr_t>
+    coerce(std::nullptr_t, std::nullptr_t)
+    {
+      return { nullptr, nullptr }; // two null pointers are equal
+    }
+
+    std::tuple<bool, bool>
+    coerce(bool* lv, std::nullptr_t)
+    {
+      return { *lv, false }; // null pointer -> false
+    }
+
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(std::int64_t* lv, std::nullptr_t)
+    {
+      return { *lv, 0 }; // null pointer -> 0
+    }
+
+    std::tuple<std::uint64_t, std::uint64_t>
+    coerce(std::uint64_t* lv, std::nullptr_t)
+    {
+      return { *lv, 0 }; // null pointer -> 0
+    }
+
+    std::tuple<double, double>
+    coerce(double* lv, std::nullptr_t)
+    {
+      return { *lv, 0 }; // null pointer -> 0.0
+    }
+
+    std::tuple<json::string, std::nullptr_t>
+    coerce(json::string* lv, std::nullptr_t)
+    {
+      return { std::move(*lv), nullptr }; // requires special handling
+    }
+
+    std::tuple<bool, bool>
+    coerce(std::nullptr_t, bool* rv)
+    {
+      return { false, *rv }; // null pointer -> false
+    }
+
+    std::tuple<std::int64_t, std::int64_t>
+    coerce(std::nullptr_t, std::int64_t* rv)
+    {
+      return { 0, *rv }; // null pointer -> 0
+    }
+
+    std::tuple<std::uint64_t, std::uint64_t>
+    coerce(std::nullptr_t, std::uint64_t* rv)
+    {
+      return { 0, *rv }; // null pointer -> 0
+    }
+
+    std::tuple<double, double>
+    coerce(std::nullptr_t, double* rv)
+    {
+      return { 0, *rv }; // null pointer -> 0
+    }
+
+    std::tuple<std::nullptr_t, json::string>
+    coerce(std::nullptr_t, json::string* rv)
+    {
+      return { nullptr, std::move(*rv) }; // requires special handling
+    }
+  };
   // @}
 
   // Arith
@@ -1496,43 +1583,43 @@ namespace json_logic
     std::tuple<std::nullptr_t, std::nullptr_t>
     coerce(double*, std::nullptr_t)
     {
-      return std::make_tuple(nullptr, nullptr);
+      return { nullptr, nullptr };
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
     coerce(std::int64_t*, std::nullptr_t)
     {
-      return std::make_tuple(nullptr, nullptr);
+      return { nullptr, nullptr };
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
     coerce(std::uint64_t*, std::nullptr_t)
     {
-      return std::make_tuple(nullptr, nullptr);
+      return { nullptr, nullptr };
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
     coerce(std::nullptr_t, double*)
     {
-      return std::make_tuple(nullptr, nullptr);
+      return { nullptr, nullptr };
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
     coerce(std::nullptr_t, std::int64_t*)
     {
-      return std::make_tuple(nullptr, nullptr);
+      return { nullptr, nullptr };
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
     coerce(std::nullptr_t, std::uint64_t*)
     {
-      return std::make_tuple(nullptr, nullptr);
+      return { nullptr, nullptr };
     }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
     coerce(std::nullptr_t, std::nullptr_t)
     {
-      return std::make_tuple(nullptr, nullptr);
+      return { nullptr, nullptr };
     }
   };
 
@@ -1568,7 +1655,7 @@ namespace json_logic
     std::tuple<json::string, json::string>
     coerce(json::string* lv, json::string* rv)
     {
-      return std::make_tuple(std::move(*lv), std::move(*rv));
+      return { std::move(*lv), std::move(*rv) };
     }
   };
 
@@ -1589,17 +1676,14 @@ namespace json_logic
     std::tuple<Array*, Array*>
     coerce(Array* lv, Array* rv)
     {
-      return std::make_tuple(lv, rv);
+      return { lv, rv };
     }
   };
-
-
 
   AnyExpr convert(AnyExpr val, ...)
   {
     return val;
   }
-
 
   AnyExpr convert(AnyExpr val, const ArithmeticOperator&)
   {
@@ -2266,6 +2350,18 @@ namespace json_logic
   {
     using RelationalOperator::result_type;
 
+    result_type
+    operator()(const json::string&, std::nullptr_t) const
+    {
+      return false;
+    }
+
+    result_type
+    operator()(std::nullptr_t, const json::string&) const
+    {
+      return false;
+    }
+
     template <class T>
     result_type
     operator()(const T& lhs, const T& rhs) const
@@ -2278,6 +2374,18 @@ namespace json_logic
   struct Calc<Greater> : RelationalOperator
   {
     using RelationalOperator::result_type;
+
+    result_type
+    operator()(const json::string&, std::nullptr_t) const
+    {
+      return false;
+    }
+
+    result_type
+    operator()(std::nullptr_t, const json::string&) const
+    {
+      return false;
+    }
 
     template <class T>
     result_type
@@ -2292,6 +2400,18 @@ namespace json_logic
   {
     using RelationalOperator::result_type;
 
+    result_type
+    operator()(const json::string& lhs, std::nullptr_t) const
+    {
+      return lhs.empty();
+    }
+
+    result_type
+    operator()(std::nullptr_t, const json::string& rhs) const
+    {
+      return rhs.empty();
+    }
+
     template <class T>
     result_type
     operator()(const T& lhs, const T& rhs) const
@@ -2304,6 +2424,18 @@ namespace json_logic
   struct Calc<Geq> : RelationalOperator
   {
     using RelationalOperator::result_type;
+
+    result_type
+    operator()(const json::string& lhs, std::nullptr_t) const
+    {
+      return lhs.empty();
+    }
+
+    result_type
+    operator()(std::nullptr_t, const json::string& rhs) const
+    {
+      return rhs.empty();
+    }
 
     template <class T>
     result_type
