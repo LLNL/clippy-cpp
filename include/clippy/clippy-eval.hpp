@@ -35,6 +35,12 @@ namespace json_logic
     using base::base;
   };
 
+  struct type_error : std::runtime_error
+  {
+    using base = std::runtime_error;
+    using base::base;
+  };
+
   template <class Error = std::runtime_error, class T>
   T& deref(T* p, const char* msg = "assertion failed")
   {
@@ -674,7 +680,7 @@ namespace json_logic
     CXX_NORETURN
     void typeError()
     {
-      throw std::runtime_error("typing error");
+      throw type_error("typing error");
     }
 
     CXX_NORETURN
@@ -1166,7 +1172,7 @@ namespace json_logic
   inline bool toConcreteValue(const Array& v, const bool&)        { return v.num_evaluated_operands(); }
   /// \}
 
-  template <bool WithArray>
+  template <bool WithNull, bool WithArray>
   struct ComparisonOperatorBase
   {
     enum
@@ -1175,7 +1181,7 @@ namespace json_logic
       definedForDouble  = true,
       definedForInteger = true,
       definedForBool    = true,
-      definedForNull    = false,     // \todo should be true
+      definedForNull    = WithNull,  // \todo should be true
       definedForArray   = WithArray  // \todo should be true
     };
 
@@ -1185,13 +1191,33 @@ namespace json_logic
   /// \brief a strict equality operator operates on operands of the same
   ///        type. The operation on two different types returns false.
   ///        NO type coercion is performed.
-  struct StrictEqualityOperator : ComparisonOperatorBase<false>
+  struct StrictEqualityOperator : ComparisonOperatorBase<true, false>
   {
     template <class LhsT, class RhsT>
     std::tuple<LhsT, RhsT>
     coerce(LhsT* lv, RhsT* rv)
     {
       return std::make_tuple(std::move(*lv), std::move(*rv));
+    }
+
+    std::tuple<std::nullptr_t, std::nullptr_t>
+    coerce(std::nullptr_t lv, std::nullptr_t rv)
+    {
+      return std::make_tuple(lv, rv); // two null pointers are equal
+    }
+
+    template <class LhsT>
+    std::tuple<LhsT, std::nullptr_t>
+    coerce(LhsT* lv, std::nullptr_t)
+    {
+      return std::make_tuple(std::move(*lv), nullptr);
+    }
+
+    template <class RhsT>
+    std::tuple<std::nullptr_t, RhsT>
+    coerce(std::nullptr_t, RhsT* rv)
+    {
+      return std::make_tuple(nullptr, std::move(*rv));
     }
   };
 
@@ -1359,8 +1385,10 @@ namespace json_logic
     }
   };
 
-  struct EqualityOperator   : RelationalOperatorBase, ComparisonOperatorBase<false>
+  struct EqualityOperator   : RelationalOperatorBase, ComparisonOperatorBase<true, false>
   {
+    using RelationalOperatorBase::coerce;
+
 /*
     std::tuple<bool, bool>
     coerce(Array* lv, Array* rv)
@@ -1416,9 +1444,35 @@ namespace json_logic
       return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
     }
 */
+
+    std::tuple<std::nullptr_t, std::nullptr_t>
+    coerce(std::nullptr_t lv, std::nullptr_t rv)
+    {
+      return std::make_tuple(lv, rv); // two null pointers are equal
+    }
+
+    template <class T>
+    std::tuple<bool, bool>
+    coerce(T*, std::nullptr_t)
+    {
+      return std::make_tuple(false, true); // null pointer is only equal to itself
+    }
+
+    template <class T>
+    std::tuple<bool, bool>
+    coerce(std::nullptr_t, T*)
+    {
+      return std::make_tuple(true, false); // null pointer is only equal to itself
+    }
+
+    //~ std::tuple<bool, bool>
+    //~ coerce(...)
+    //~ {
+      //~ return std::make_tuple(true, false); // null pointer is only equal to itself
+    //~ }
   };
 
-  struct RelationalOperator : RelationalOperatorBase, ComparisonOperatorBase<false>
+  struct RelationalOperator : RelationalOperatorBase, ComparisonOperatorBase<false, false>
   {};
   // @}
 
@@ -2144,16 +2198,15 @@ namespace json_logic
     return std::move(vis).result();
   }
 
-
-
   template <class>
   struct Calc {};
-
 
   template <>
   struct Calc<Eq> : EqualityOperator
   {
     using EqualityOperator::result_type;
+
+    result_type operator()(...) const { return false; } // type mismatch
 
     template <class T>
     result_type
@@ -2167,6 +2220,8 @@ namespace json_logic
   struct Calc<Neq> : EqualityOperator
   {
     using EqualityOperator::result_type;
+
+    result_type operator()(...) const { return true; } // type mismatch
 
     template <class T>
     result_type
@@ -2756,7 +2811,14 @@ namespace json_logic
 
   void Calculator::visit(Eq& n)
   {
-    evalPairShortCircuit(n, Calc<Eq>{});
+    try
+    {
+      evalPairShortCircuit(n, Calc<Eq>{});
+    }
+    catch (const type_error&)
+    {
+      calcres = toValueExpr(false);
+    }
   }
 
   void Calculator::visit(StrictEq& n)
