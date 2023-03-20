@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 for tst in *.json; do
-  echo "testing ../../../b2/examples/logic/testeval <$tst"
-  ../../../b2/examples/logic/testeval <$tst
+  echo "testing ../../../build/examples/logic/testeval <$tst"
+  ../../../build/examples/logic/testeval <$tst
   res=$?
   if [[ $res -ne 0 ]] ; then
     echo "$res"

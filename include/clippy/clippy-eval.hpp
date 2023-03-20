@@ -112,7 +112,8 @@ namespace json_logic
     // in every derived class.
     void set_operands(container_type&& opers) { this->swap(opers); }
 
-    container_type& operands() { return *this; }
+    container_type&  operands()         { return *this; }
+    container_type&& move_operands() && { return std::move(*this); }
 
     Expr& operand(int n) const
     {
@@ -276,10 +277,33 @@ namespace json_logic
 
 
   // array
-  struct Array     : Operator  // array is modeled as operator
+
+  // arrays serve a dual purpose
+  //   they can be considered collections, but also an aggregate value
+  // The class is final and it supports move ctor/assignment, so the data
+  //   can move efficiently.
+  struct Array final : Operator  // array is modeled as operator
   {
       void accept(Visitor&) final;
+
+      // define
+      Array() = default;
+      Array(Array&&);
+      Array& operator=(Array&&);
   };
+
+  Array::Array(Array&& other)
+  : Operator()
+  {
+    set_operands(std::move(other).move_operands());
+  }
+
+  Array&
+  Array::operator=(Array&& other)
+  {
+    set_operands(std::move(other).move_operands());
+    return *this;
+  }
 
   struct Map       : OperatorN<2>
   {
@@ -1024,8 +1048,9 @@ namespace json_logic
   // coercion functions
 
   struct CoercionError {};
-  struct OutsideOfInt64Range  : CoercionError {};
-  struct OutsideOfUint64Range : CoercionError {};
+  struct OutsideOfInt64Range   : CoercionError {};
+  struct OutsideOfUint64Range  : CoercionError {};
+  struct UnpackedArrayRequired : CoercionError {};
 
   /// conversion to int64
   /// \{
@@ -1183,6 +1208,7 @@ namespace json_logic
   /// conversion to boolean
   ///   implements truthy, falsy as described by https://jsonlogic.com/truthy.html
   /// \{
+  inline bool toConcreteValue(bool v, const bool&)                { return v; }
   inline bool toConcreteValue(std::int64_t v, const bool&)        { return v; }
   inline bool toConcreteValue(std::uint64_t v, const bool&)       { return v; }
   inline bool toConcreteValue(double v, const bool&)              { return v; }
@@ -1191,7 +1217,7 @@ namespace json_logic
   inline bool toConcreteValue(std::nullptr_t, const bool&)        { return false; }
   /// \}
 
-  template <bool WithNull, bool WithArray>
+  template <bool WithArray>
   struct ComparisonOperatorBase
   {
     enum
@@ -1200,7 +1226,7 @@ namespace json_logic
       definedForDouble  = true,
       definedForInteger = true,
       definedForBool    = true,
-      definedForNull    = WithNull,  // \todo should be true
+      definedForNull    = true,
       definedForArray   = WithArray  // \todo should be true
     };
 
@@ -1210,7 +1236,7 @@ namespace json_logic
   /// \brief a strict equality operator operates on operands of the same
   ///        type. The operation on two different types returns false.
   ///        NO type coercion is performed.
-  struct StrictEqualityOperator : ComparisonOperatorBase<true, false>
+  struct StrictEqualityOperator : ComparisonOperatorBase<true>
   {
     template <class LhsT, class RhsT>
     std::tuple<LhsT, RhsT>
@@ -1404,65 +1430,52 @@ namespace json_logic
     }
   };
 
-  struct EqualityOperator   : RelationalOperatorBase, ComparisonOperatorBase<true, false>
+  struct EqualityOperator   : RelationalOperatorBase, ComparisonOperatorBase<true>
   {
     using RelationalOperatorBase::coerce;
 
-/*
-    std::tuple<bool, bool>
-    coerce(Array* lv, Array* rv)
-    {
-      return std::make_tuple(true, false); // arrays are never equal
-    }
+    // due to special conversion rules, the coercion function may just produce
+    //   the result instead of just unpacking and coercing values.
 
     std::tuple<bool, bool>
-    coerce(bool* lv, Array* rv)
+    coerce(Array*, Array*)
     {
-      return std::make_tuple(*lv, rv->num_evaluated_operands() > 0); // arrays are never equal
+      return { true, false }; // arrays are never equal
     }
 
+    template <class T>
     std::tuple<bool, bool>
-    coerce(Array* lv, bool* rv)
+    coerce(T* lv, Array* rv)
     {
-      return std::make_tuple(rv->num_evaluated_operands() > 0, *rv); // arrays are never equal
+      // an array may be equal to another value if
+      //   (1) *lv == arr[0], iff the array has exactly one element
+      if (rv->num_evaluated_operands() == 1)
+        throw UnpackedArrayRequired{};
+
+      //   (2) or if [] and *lv converts to false
+      if (rv->num_evaluated_operands() > 1)
+        return { false, true };
+
+      const bool convToFalse = toConcreteValue(*lv, false) == false;
+
+      return { convToFalse, true /* zero elements */ };
     }
 
+    template <class T>
     std::tuple<bool, bool>
-    coerce(double* lv, Array* rv)
+    coerce(Array* lv, T* rv)
     {
-      return std::make_tuple(true, false);
-    }
+      // see comments in coerce(T*,Array*)
+      if (lv->num_evaluated_operands() == 1)
+        throw UnpackedArrayRequired{};
 
-    std::tuple<std::int64_t, std::int64_t>
-    coerce(std::int64_t* lv, Array* rv)
-    {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
-    }
+      if (lv->num_evaluated_operands() > 1)
+        return { false, true };
 
-    std::tuple<std::uint64_t, std::uint64_t>
-    coerce(std::uint64_t* lv, Array* rv)
-    {
-      return std::make_tuple(*lv, toConcreteValue(*rv, *lv));
-    }
+      const bool convToFalse = toConcreteValue(*rv, false) == false;
 
-    std::tuple<double, double>
-    coerce(Array* lv, double* rv)
-    {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
+      return { true /* zero elements */, convToFalse };
     }
-
-    std::tuple<std::int64_t, std::int64_t>
-    coerce(Array*, std::int64_t* rv)
-    {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
-    }
-
-    std::tuple<std::uint64_t, std::uint64_t>
-    coerce(Array*, std::uint64_t* rv)
-    {
-      return std::make_tuple(toConcreteValue(*lv, *rv), *rv);
-    }
-*/
 
     std::tuple<std::nullptr_t, std::nullptr_t>
     coerce(std::nullptr_t, std::nullptr_t)
@@ -1484,14 +1497,20 @@ namespace json_logic
       return { true, false }; // null pointer is only equal to itself
     }
 
-    //~ std::tuple<bool, bool>
-    //~ coerce(...)
-    //~ {
-      //~ return std::make_tuple(true, false); // null pointer is only equal to itself
-    //~ }
+    std::tuple<bool, bool>
+    coerce(Array*, std::nullptr_t)
+    {
+      return { true, false }; // null pointer is only equal to itself
+    }
+
+    std::tuple<bool, bool>
+    coerce(std::nullptr_t, Array*)
+    {
+      return { true, false }; // null pointer is only equal to itself
+    }
   };
 
-  struct RelationalOperator : RelationalOperatorBase, ComparisonOperatorBase<true, false>
+  struct RelationalOperator : RelationalOperatorBase, ComparisonOperatorBase<false>
   {
     using RelationalOperatorBase::coerce;
 
@@ -2140,7 +2159,19 @@ namespace json_logic
       void visit(Array& n) final
       {
         if constexpr (BinaryOperator::definedForArray)
-          return calc(&n);
+        {
+          try
+          {
+            calc(&n);
+          }
+          catch (const UnpackedArrayRequired&)
+          {
+            assert(n.num_evaluated_operands() == 1);
+            n.operand(0).accept(*this);
+          }
+
+          return;
+        }
 
         typeError();
       }
@@ -2256,7 +2287,19 @@ namespace json_logic
       void visit(Array& n) final
       {
         if constexpr (BinaryOperator::definedForArray)
-          return calc(&n);
+        {
+          try
+          {
+            calc(&n);
+          }
+          catch (const UnpackedArrayRequired&)
+          {
+            assert(n.num_evaluated_operands() == 1);
+            n.operand(0).accept(*this);
+          }
+
+          return;
+        }
 
         typeError();
       }
@@ -2322,6 +2365,12 @@ namespace json_logic
 
     result_type operator()(...) const { return false; } // type mismatch
 
+    result_type
+    operator()(const Array&, const Array&) const
+    {
+      return false; // arrays cannot be compared.. (why not?)
+    }
+
     template <class T>
     result_type
     operator()(const T& lhs, const T& rhs) const
@@ -2336,6 +2385,12 @@ namespace json_logic
     using StrictEqualityOperator::result_type;
 
     result_type operator()(...) const { return true; } // type mismatch
+
+    result_type
+    operator()(const Array&, const Array&) const
+    {
+      return false; // arrays are never equal
+    }
 
     template <class T>
     result_type
@@ -2943,14 +2998,14 @@ namespace json_logic
 
   void Calculator::visit(Eq& n)
   {
-    try
-    {
-      evalPairShortCircuit(n, Calc<Eq>{});
-    }
-    catch (const type_error&)
-    {
-      calcres = toValueExpr(false);
-    }
+    //~ try
+    //~ {
+    evalPairShortCircuit(n, Calc<Eq>{});
+    //~ }
+    //~ catch (const type_error&)
+    //~ {
+      //~ calcres = toValueExpr(false);
+    //~ }
   }
 
   void Calculator::visit(StrictEq& n)
@@ -3086,13 +3141,14 @@ namespace json_logic
     Operator::container_type elems;
     Calculator*              self = this;
 
-    std::copy_if( std::make_move_iterator(n.begin()), std::make_move_iterator(n.end()),
-                  std::back_inserter(elems),
-                  [self](AnyExpr&& exp) -> ValueExpr
-                  {
-                    return self->eval(*exp);
-                  }
-                );
+    // \todo consider making arrays lazy
+    std::transform( std::make_move_iterator(n.begin()), std::make_move_iterator(n.end()),
+                    std::back_inserter(elems),
+                    [self](AnyExpr&& exp) -> ValueExpr
+                    {
+                      return self->eval(*exp);
+                    }
+                  );
 
     Array& res = deref(new Array);
 
