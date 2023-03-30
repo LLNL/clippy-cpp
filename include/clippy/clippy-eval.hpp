@@ -2317,6 +2317,12 @@ namespace json_logic
     using RelationalOperator::result_type;
 
     result_type
+    operator()(const std::nullptr_t, std::nullptr_t) const
+    {
+      return false;
+    }
+
+    result_type
     operator()(const json::string&, std::nullptr_t) const
     {
       return false;
@@ -2340,6 +2346,12 @@ namespace json_logic
   struct Calc<Greater> : RelationalOperator
   {
     using RelationalOperator::result_type;
+
+    result_type
+    operator()(const std::nullptr_t, std::nullptr_t) const
+    {
+      return false;
+    }
 
     result_type
     operator()(const json::string&, std::nullptr_t) const
@@ -2367,6 +2379,12 @@ namespace json_logic
     using RelationalOperator::result_type;
 
     result_type
+    operator()(const std::nullptr_t, std::nullptr_t) const
+    {
+      return true;
+    }
+
+    result_type
     operator()(const json::string& lhs, std::nullptr_t) const
     {
       return lhs.empty();
@@ -2390,6 +2408,12 @@ namespace json_logic
   struct Calc<Geq> : RelationalOperator
   {
     using RelationalOperator::result_type;
+
+    result_type
+    operator()(const std::nullptr_t, std::nullptr_t) const
+    {
+      return true;
+    }
 
     result_type
     operator()(const json::string& lhs, std::nullptr_t) const
@@ -2509,6 +2533,12 @@ namespace json_logic
   {
     using ArithmeticOperator::result_type;
 
+    result_type
+    operator()(const std::nullptr_t, std::nullptr_t) const
+    {
+      return nullptr;
+    }
+
     template <class T>
     result_type
     operator()(const T& lhs, const T& rhs) const
@@ -2521,6 +2551,12 @@ namespace json_logic
   struct Calc<Max> : ArithmeticOperator
   {
     using ArithmeticOperator::result_type;
+
+    result_type
+    operator()(const std::nullptr_t, std::nullptr_t) const
+    {
+      return nullptr;
+    }
 
     template <class T>
     result_type
