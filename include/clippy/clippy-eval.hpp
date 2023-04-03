@@ -88,7 +88,8 @@ namespace json_logic
   // foundation classes
   // \{
 
-  using AnyExpr = std::unique_ptr<Expr>;
+  using AnyExpr   = std::unique_ptr<Expr>;
+  using ValueExpr = std::unique_ptr<Expr>; // \todo consider std::unique_ptr<Value>
 
   struct Operator : Expr, private std::vector<AnyExpr>
   {
@@ -107,6 +108,7 @@ namespace json_logic
     using container_type::back;
     using container_type::push_back;
     using container_type::size;
+    using container_type::at;
 
     // convenience function so that the constructor does not need to be implemented
     // in every derived class.
@@ -982,8 +984,6 @@ namespace json_logic
     }
   }
 
-  using ValueExpr = std::unique_ptr<Expr>; // could be value if we have a type for that
-
   std::ostream& operator<<(std::ostream& os, ValueExpr& n);
 
   ValueExpr toValueExpr(std::nullptr_t)    { return ValueExpr(new NullVal); }
@@ -1128,7 +1128,6 @@ namespace json_logic
   inline bool toConcreteValue(const Array& v, const bool&)        { return v.num_evaluated_operands(); }
   /// \}
 
-  template <bool WithArray>
   struct ComparisonOperatorBase
   {
     enum
@@ -1138,7 +1137,7 @@ namespace json_logic
       definedForInteger = true,
       definedForBool    = true,
       definedForNull    = true,
-      definedForArray   = WithArray  // \todo should be true
+      definedForArray   = true
     };
 
     using result_type   = bool;
@@ -1147,8 +1146,14 @@ namespace json_logic
   /// \brief a strict equality operator operates on operands of the same
   ///        type. The operation on two different types returns false.
   ///        NO type coercion is performed.
-  struct StrictEqualityOperator : ComparisonOperatorBase<true>
+  struct StrictEqualityOperator : ComparisonOperatorBase
   {
+    std::tuple<bool, bool>
+    coerce(Array*, Array*)
+    {
+      return { true, false }; // arrays are never equal
+    }
+
     template <class LhsT, class RhsT>
     std::tuple<LhsT, RhsT>
     coerce(LhsT* lv, RhsT* rv)
@@ -1341,7 +1346,7 @@ namespace json_logic
     }
   };
 
-  struct EqualityOperator   : RelationalOperatorBase, ComparisonOperatorBase<true>
+  struct EqualityOperator   : RelationalOperatorBase, ComparisonOperatorBase
   {
     using RelationalOperatorBase::coerce;
 
@@ -1358,7 +1363,7 @@ namespace json_logic
     std::tuple<bool, bool>
     coerce(T* lv, Array* rv)
     {
-      // an array may be equal to another value if
+      // an array may be compared to a value
       //   (1) *lv == arr[0], iff the array has exactly one element
       if (rv->num_evaluated_operands() == 1)
         throw UnpackedArrayRequired{};
@@ -1421,9 +1426,49 @@ namespace json_logic
     }
   };
 
-  struct RelationalOperator : RelationalOperatorBase, ComparisonOperatorBase<false>
+  struct RelationalOperator : RelationalOperatorBase, ComparisonOperatorBase
   {
     using RelationalOperatorBase::coerce;
+
+    std::tuple<Array*, Array*>
+    coerce(Array* lv, Array* rv)
+    {
+      return { lv, rv };
+    }
+
+    template <class T>
+    std::tuple<bool, bool>
+    coerce(T* lv, Array* rv)
+    {
+      // an array may be equal to another value if
+      //   (1) *lv == arr[0], iff the array has exactly one element
+      if (rv->num_evaluated_operands() == 1)
+        throw UnpackedArrayRequired{};
+
+      //   (2) or if [] and *lv converts to false
+      if (rv->num_evaluated_operands() > 1)
+        return { false, true };
+
+      const bool convToTrue = toConcreteValue(*lv, true) == true;
+
+      return { convToTrue, false /* zero elements */ };
+    }
+
+    template <class T>
+    std::tuple<bool, bool>
+    coerce(Array* lv, T* rv)
+    {
+      // see comments in coerce(T*,Array*)
+      if (lv->num_evaluated_operands() == 1)
+        throw UnpackedArrayRequired{};
+
+      if (lv->num_evaluated_operands() > 1)
+        return { false, true };
+
+      const bool convToTrue = toConcreteValue(*rv, true) == true;
+
+      return { false /* zero elements */, convToTrue };
+    }
 
     std::tuple<std::nullptr_t, std::nullptr_t>
     coerce(std::nullptr_t, std::nullptr_t)
@@ -1887,33 +1932,6 @@ namespace json_logic
     return std::move(unpack).result();
   }
 
-
-
-/*
-  bool toBool(Expr& e)
-  {
-    struct BoolConverter : FwdVisitor
-    {
-      void visit(Expr&)        final { typeError(); }
-
-      void visit(NullVal&)     final { res = false; }
-      void visit(BoolVal& n)   final { res = n.value(); }
-      void visit(IntVal& n)    final { res = toConcreteValue(n.value(), bool{}); }
-      void visit(UintVal& n)   final { res = toConcreteValue(n.value(), bool{}); }
-      void visit(DoubleVal& n) final { res = toConcreteValue(n.value(), bool{}); }
-      void visit(StringVal& n) final { res = toConcreteValue(n.value(), bool{}); }
-      void visit(Array& n)     final { res = toConcreteValue(n, bool{}); }
-
-      bool res;
-    };
-
-    BoolConverter conv;
-
-    e.accept(conv);
-    return conv.res;
-  }
-*/
-
   template <class T>
   T unpackValue(ValueExpr& el)
   {
@@ -2236,6 +2254,44 @@ namespace json_logic
     return std::move(vis).result();
   }
 
+  template <class BinaryPredicate>
+  bool compareSeq(Array& lv, Array& rv, BinaryPredicate pred)
+  {
+    const std::size_t lsz = lv.num_evaluated_operands();
+    const std::size_t rsz = rv.num_evaluated_operands();
+
+    if (lsz == 0)
+      return pred( false, rsz != 0 );
+
+    if (rsz == 0)
+      return pred( true, false );
+
+    std::size_t const len   = std::min(lsz, rsz);
+    std::size_t       i     = 0;
+    bool              res   = false;
+    bool              found = false;
+
+    while ((i < len) && !found)
+    {
+      res   = compute(lv.at(i), rv.at(i), pred);
+
+      // res is conclusive if the reverse test yields a different result
+      found = res != compute(rv.at(i), lv.at(i), pred);
+
+      ++i;
+    }
+
+    return found ? res : pred(lsz, rsz);
+  }
+
+
+  template <class BinaryPredicate>
+  bool compareSeq(Array* lv, Array* rv, BinaryPredicate pred)
+  {
+    return compareSeq(deref(lv), deref(rv), std::move(pred));
+  }
+
+
   template <class>
   struct Calc {};
 
@@ -2276,12 +2332,6 @@ namespace json_logic
 
     result_type operator()(...) const { return false; } // type mismatch
 
-    result_type
-    operator()(const Array&, const Array&) const
-    {
-      return false; // arrays cannot be compared.. (why not?)
-    }
-
     template <class T>
     result_type
     operator()(const T& lhs, const T& rhs) const
@@ -2296,12 +2346,6 @@ namespace json_logic
     using StrictEqualityOperator::result_type;
 
     result_type operator()(...) const { return true; } // type mismatch
-
-    result_type
-    operator()(const Array&, const Array&) const
-    {
-      return false; // arrays are never equal
-    }
 
     template <class T>
     result_type
@@ -2320,6 +2364,12 @@ namespace json_logic
     operator()(const std::nullptr_t, std::nullptr_t) const
     {
       return false;
+    }
+
+    result_type
+    operator()(Array* lv, Array* rv) const
+    {
+      return compareSeq(lv, rv, *this);
     }
 
     result_type
@@ -2354,6 +2404,12 @@ namespace json_logic
     }
 
     result_type
+    operator()(Array* lv, Array* rv) const
+    {
+      return compareSeq(lv, rv, *this);
+    }
+
+    result_type
     operator()(const json::string&, std::nullptr_t) const
     {
       return false;
@@ -2385,6 +2441,12 @@ namespace json_logic
     }
 
     result_type
+    operator()(Array* lv, Array* rv) const
+    {
+      return compareSeq(lv, rv, *this);
+    }
+
+    result_type
     operator()(const json::string& lhs, std::nullptr_t) const
     {
       return lhs.empty();
@@ -2413,6 +2475,12 @@ namespace json_logic
     operator()(const std::nullptr_t, std::nullptr_t) const
     {
       return true;
+    }
+
+    result_type
+    operator()(Array* lv, Array* rv) const
+    {
+      return compareSeq(lv, rv, *this);
     }
 
     result_type
@@ -2945,14 +3013,7 @@ namespace json_logic
 
   void Calculator::visit(Eq& n)
   {
-    //~ try
-    //~ {
-      evalPairShortCircuit(n, Calc<Eq>{});
-    //~ }
-    //~ catch (const type_error&)
-    //~ {
-      //~ calcres = toValueExpr(false);
-    //~ }
+    evalPairShortCircuit(n, Calc<Eq>{});
   }
 
   void Calculator::visit(StrictEq& n)
