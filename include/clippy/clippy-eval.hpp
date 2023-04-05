@@ -377,6 +377,9 @@ namespace json_logic
   // values
   struct NullVal   : Value
   {
+      NullVal()               = default;
+      NullVal(std::nullptr_t) {}
+
       void accept(Visitor&) final;
 
       std::nullptr_t value() const { return nullptr; }
@@ -429,11 +432,15 @@ namespace json_logic
       using base = std::map<json::string, AnyExpr>;
       using base::base;
 
+      using base::value_type;
       using base::iterator;
       using base::const_iterator;
       using base::find;
+      using base::begin;
       using base::end;
       using base::insert;
+
+      base& elements() { return *this; }
 
       void accept(Visitor&) final;
   };
@@ -679,7 +686,7 @@ namespace json_logic
 
       void visit(If& n)         final { self.gvisit(n); }
 
-      void visit(Value& n)      final { self.gvisit(n); }
+      // void visit(Value& n)      final { self.gvisit(n); }
       void visit(NullVal& n)    final { self.gvisit(n); }
       void visit(BoolVal& n)    final { self.gvisit(n); }
       void visit(IntVal& n)     final { self.gvisit(n); }
@@ -941,7 +948,7 @@ namespace json_logic
           unsupported();
       }
 
-      return std::unique_ptr<Expr>(res);
+      return AnyExpr(res);
     }
 
     inline
@@ -986,12 +993,32 @@ namespace json_logic
 
   std::ostream& operator<<(std::ostream& os, ValueExpr& n);
 
+  //
+  // to value conversion
+
+  ValueExpr toValueExpr(const json::value& n);
+
   ValueExpr toValueExpr(std::nullptr_t)    { return ValueExpr(new NullVal); }
   ValueExpr toValueExpr(bool val)          { return ValueExpr(new BoolVal(val)); }
   ValueExpr toValueExpr(std::int64_t val)  { return ValueExpr(new IntVal(val)); }
   ValueExpr toValueExpr(std::uint64_t val) { return ValueExpr(new UintVal(val)); }
   ValueExpr toValueExpr(double val)        { return ValueExpr(new DoubleVal(val)); }
   ValueExpr toValueExpr(json::string val)  { return ValueExpr(new StringVal(std::move(val))); }
+
+  ValueExpr toValueExpr(const json::array& val)
+  {
+    Operator::container_type elems;
+
+    std::transform( val.begin(), val.end(),
+                    std::back_inserter(elems),
+                    [](const json::value& el) -> ValueExpr { return toValueExpr(el); }
+                  );
+
+    Array& arr = deref(new Array);
+
+    arr.set_operands(std::move(elems));
+    return ValueExpr(&arr);
+  }
 
   CXX_MAYBE_UNUSED
   ValueExpr toValueExpr(const json::value& n)
@@ -1036,6 +1063,12 @@ namespace json_logic
           break;
         }
 
+      case json::kind::array:
+        {
+          res = toValueExpr(n.get_array());
+          break;
+        }
+
       default:
         unsupported();
     }
@@ -1048,8 +1081,8 @@ namespace json_logic
   // coercion functions
 
   struct CoercionError {};
-  struct OutsideOfInt64Range  : CoercionError {};
-  struct OutsideOfUint64Range : CoercionError {};
+  struct OutsideOfInt64Range   : CoercionError {};
+  struct OutsideOfUint64Range  : CoercionError {};
   struct UnpackedArrayRequired : CoercionError {};
 
   /// conversion to int64
@@ -1944,17 +1977,101 @@ namespace json_logic
     return unpackValue<T>(*el);
   }
 
-  template <class T>
-  bool toBool(ValueExpr& el)
+  //
+  // Json Logic - truthy/falsy
+  bool truthy(Expr& el)       { return unpackValue<bool>(el); }
+  bool truthy(ValueExpr& el)  { return unpackValue<bool>(el); }
+  bool truthy(ValueExpr&& el) { return unpackValue<bool>(std::move(el)); }
+  bool falsy(Expr& el)        { return !truthy(el); }
+  bool falsy(ValueExpr& el)   { return !truthy(el); }
+  bool falsy(ValueExpr&& el)  { return !truthy(std::move(el)); }
+
+  //
+  // cloning
+
+  AnyExpr cloneExpr(AnyExpr& expr);
+
+  struct ExprCloner : GVisitor<ExprCloner>
   {
-    return unpackValue<bool>(el);
+      using base = GVisitor<ExprCloner>;
+
+      ExprCloner()
+      : base(*this), res(nullptr)
+      {}
+
+      /// init functions that set up children
+      /// \{
+      Expr& init(Operator&,  Operator&);
+      Expr& init(ObjectVal&, ObjectVal&);
+      /// \}
+
+      /// function family for type specific cloning
+      /// \param  n       the original node
+      /// \param  unnamed a tag parameter to summarily handle groups of types
+      /// \return the cloned node
+      /// \{
+      CXX_NORETURN
+      Expr& clone(Expr&, const Expr&)             { unsupported(); }
+
+      Expr& clone(Error&, const Error&)           { return deref(new Error); }
+
+      template <class TValue>
+      Expr& clone(TValue& n, const Value&)        { return deref(new TValue(n.value())); }
+
+      template <class TOperator>
+      Expr& clone(TOperator& n, const Operator&)  { return init(n, deref(new TOperator)); }
+
+      Expr& clone(ObjectVal& n, const ObjectVal&) { return init(n, deref(new ObjectVal)); }
+      /// \}
+
+      template <class TExpr>
+      void gvisit(TExpr& n) { res = &clone(n, n); }
+
+      Expr* result() { return res; }
+
+    private:
+      Expr* res;
+  };
+
+  Expr&
+  ExprCloner::init(Operator& src, Operator& tgt)
+  {
+    Operator::container_type children;
+
+    std::transform( src.operands().begin(), src.operands().end(),
+                    std::back_inserter(children),
+                    [](AnyExpr& e) -> AnyExpr { return cloneExpr(e); }
+                  );
+
+    tgt.set_operands(std::move(children));
+    return tgt;
   }
 
-  template <class T>
-  bool toBool(ValueExpr&& el)
+  Expr&
+  ExprCloner::init(ObjectVal& src, ObjectVal& tgt)
   {
-    return unpackValue<bool>(el);
+    std::transform( src.begin(), src.end(),
+                    std::inserter(tgt.elements(), tgt.end()),
+                    [](ObjectVal::value_type& entry) -> ObjectVal::value_type
+                    {
+                      return { entry.first, cloneExpr(entry.second) };
+                    }
+                  );
+
+    return tgt;
   }
+
+  AnyExpr cloneExpr(AnyExpr& expr)
+  {
+    ExprCloner cloner;
+
+    expr->accept(cloner);
+    return ValueExpr{ cloner.result() };
+  }
+
+
+  //
+  // internal down cast
 
   template <class ExprT>
   struct DownCastVisitor : GVisitor<DownCastVisitor<ExprT> >
@@ -1969,12 +2086,11 @@ namespace json_logic
 
       void gvisit(ExprT& n) { res = &n; }
 
-      ExprT& result() { return deref<cast_error>(res); }
+      ExprT* result() { return res; }
 
     private:
       ExprT* res;
   };
-
 
   template <class ExprT>
   ExprT& down_cast(Expr& expr)
@@ -1982,9 +2098,24 @@ namespace json_logic
     DownCastVisitor<ExprT> vis;
 
     expr.accept(vis);
-    return vis.result();
+    return deref<cast_error>(vis.result());
   }
 
+  template <class ExprT, class Fn, class AltFn>
+  auto with_type(Expr* e, Fn fn, AltFn altfn) -> decltype(altfn())
+  {
+    if (e == nullptr) { CXX_UNLIKELY; return altfn(); }
+
+    DownCastVisitor<ExprT> vis;
+    e->accept(vis);
+
+    return vis.result() ? fn(*vis.result()) : altfn();
+  }
+
+
+
+  //
+  // binary operator - double dispatch pattern
 
   template <class BinaryOperator, class LhsValue>
   struct BinaryOperatorVisitor_ : FwdVisitor
@@ -2241,15 +2372,20 @@ namespace json_logic
       result_type    res;
   };
 
+
+  //
+  // compute and sequence functions
+
   template <class BinaryOperator>
   typename BinaryOperator::result_type
   compute(ValueExpr& lhs, ValueExpr& rhs, BinaryOperator op)
   {
     using LhsVisitor = BinaryOperatorVisitor<BinaryOperator>;
 
+    assert(lhs.get() && rhs.get());
+
     LhsVisitor vis{op, rhs};
 
-    assert(lhs.get());
     lhs->accept(vis);
     return std::move(vis).result();
   }
@@ -2291,6 +2427,9 @@ namespace json_logic
     return compareSeq(deref(lv), deref(rv), std::move(pred));
   }
 
+
+  //
+  // the calc operator implementations
 
   template <class>
   struct Calc {};
@@ -2642,7 +2781,7 @@ namespace json_logic
     result_type
     operator()(Expr& val) const
     {
-      return !unpackValue<bool>(val);
+      return falsy(val);
     }
   };
 
@@ -2654,7 +2793,7 @@ namespace json_logic
     result_type
     operator()(Expr& val) const
     {
-      return unpackValue<bool>(val);
+      return truthy(val);
     }
   };
 
@@ -2831,15 +2970,16 @@ namespace json_logic
       }
   };
 
-  struct SequencePredicate
+
+  struct SequenceFunction
   {
-      SequencePredicate(Expr& e, std::ostream& logstream)
+      SequenceFunction(Expr& e, std::ostream& logstream)
       : expr(e), logger(logstream)
       {}
 
-      bool operator()(ValueExpr&& elem) const
+      ValueExpr operator()(ValueExpr&& elem) const
       {
-        ValueExpr* elptr = &elem; // workaround, since I am unable to capture a unique_ptr
+        ValueExpr* elptr = &elem; // workaround, b/c unique_ptr cannot be captured
 
         Calculator sub{ [elptr]
                         (const json::value& keyval, int) mutable -> ValueExpr
@@ -2848,30 +2988,49 @@ namespace json_logic
                           {
                             const json::string& key = *pkey;
 
-                            if (key.size() == 0) return std::move(*elptr);
+                            if (key.size() == 0) return cloneExpr(*elptr);
 
                             try
                             {
                               ObjectVal& o = down_cast<ObjectVal>(**elptr);
 
                               if (auto pos = o.find(key); pos != o.end())
-                                return std::move(pos->second);
+                                return cloneExpr(pos->second);
                             }
                             catch (const cast_error&) {}
                           }
-
 
                           return toValueExpr(nullptr);
                         },
                         logger
                       };
 
-        return unpackValue<bool>(sub.eval(expr));
+        return sub.eval(expr);
       }
 
     private:
       Expr&         expr;
       std::ostream& logger;
+  };
+
+  struct SequencePredicate : SequenceFunction
+  {
+      using SequenceFunction::SequenceFunction;
+
+      bool operator()(ValueExpr&& elem) const
+      {
+        return truthy(SequenceFunction::operator()(std::move(elem)));
+      }
+  };
+
+  struct SequencePredicateNondestructive : SequenceFunction
+  {
+      using SequenceFunction::SequenceFunction;
+
+      bool operator()(ValueExpr&& elem) const
+      {
+        return truthy(SequenceFunction::operator()(cloneExpr(elem)));
+      }
   };
 
 
@@ -2986,7 +3145,7 @@ namespace json_logic
     ValueExpr      oper  = eval(n.operand(++idx));
     //~ std::cerr << idx << ") " << oper << std::endl;
 
-    bool           found = (idx == num-1) || (unpackValue<bool>(*oper) == val);
+    bool           found = (idx == num-1) || (truthy(*oper) == val);
 
     // loop until *aa == val or when *aa is the last valid element
     while (!found)
@@ -2994,7 +3153,7 @@ namespace json_logic
       oper = eval(n.operand(++idx));
       //~ std::cerr << idx << ") " << oper << std::endl;
 
-      found = (idx == (num-1)) || (unpackValue<bool>(*oper) == val);
+      found = (idx == (num-1)) || (truthy(*oper) == val);
     }
 
     calcres = std::move(oper);
@@ -3151,12 +3310,12 @@ namespace json_logic
 
     // \todo consider making arrays lazy
     std::transform( std::make_move_iterator(n.begin()), std::make_move_iterator(n.end()),
-                  std::back_inserter(elems),
-                  [self](AnyExpr&& exp) -> ValueExpr
-                  {
-                    return self->eval(*exp);
-                  }
-                );
+                    std::back_inserter(elems),
+                    [self](AnyExpr&& exp) -> ValueExpr
+                    {
+                      return self->eval(*exp);
+                    }
+                  );
 
     Array& res = deref(new Array);
 
@@ -3170,9 +3329,57 @@ namespace json_logic
     reduce(n, Calc<Merge>{});
   }
 
-  void Calculator::visit(Map&)            { unsupported(); }
   void Calculator::visit(Reduce&)         { unsupported(); }
-  void Calculator::visit(Filter&)         { unsupported(); }
+
+  void Calculator::visit(Map& n)
+  {
+    ValueExpr arr    = eval(n.operand(0));
+    auto      mapper =
+      [&n, &arr, calclogger = &this->logger](Array& arrop) -> ValueExpr
+      {
+        Expr&                    expr  = n.operand(1);
+        Operator::container_type mapped_elements;
+
+        std::transform( std::make_move_iterator(arrop.begin()), std::make_move_iterator(arrop.end()),
+                        std::back_inserter(mapped_elements),
+                        SequenceFunction{expr, *calclogger}
+                      );
+
+        arrop.set_operands(std::move(mapped_elements));
+        return std::move(arr);
+      };
+
+    calcres = with_type<Array>( arr.get(),
+                                mapper,
+                                []()->ValueExpr { return ValueExpr{new Array}; }
+                              );
+  }
+
+  void Calculator::visit(Filter& n)
+  {
+    ValueExpr arr    = eval(n.operand(0));
+    auto      filter =
+      [&n, &arr, calclogger = &this->logger](Array& arrop) -> ValueExpr
+      {
+        Expr&                    expr  = n.operand(1);
+        Operator::container_type filtered_elements;
+
+        // non destructive predicate is required for evaluating and copying
+        std::copy_if( std::make_move_iterator(arrop.begin()), std::make_move_iterator(arrop.end()),
+                      std::back_inserter(filtered_elements),
+                      SequencePredicateNondestructive{expr, *calclogger}
+                    );
+
+        arrop.set_operands(std::move(filtered_elements));
+        return std::move(arr);
+      };
+
+    calcres = with_type<Array>( arr.get(),
+                                filter,
+                                []()->ValueExpr { return ValueExpr{new Array}; }
+                              );
+  }
+
 
   void Calculator::visit(All& n)
   {
@@ -3246,7 +3453,7 @@ namespace json_logic
 
     while (pos < lim)
     {
-      if (unpackValue<bool>(eval(n.operand(pos))))
+      if (truthy(eval(n.operand(pos))))
       {
         calcres = eval(n.operand(pos+1));
         return;
@@ -3331,6 +3538,7 @@ namespace json_logic
                           {
                             if (const json::string* ppath = keyval.if_string())
                             {
+                              //~ std::cerr << *ppath << std::endl;
                               return ppath->size() ? evalPath(*ppath, data.as_object())
                                                    : json_logic::toValueExpr(data);
                             }
@@ -3371,7 +3579,7 @@ namespace json_logic
         os << "[";
         for (AnyExpr& el : n)
         {
-          if (first) first = false; else os << ", ";
+          if (first) first = false; else os << ",";
 
           deref(el).accept(*this);
         }
