@@ -17,6 +17,7 @@ parseStream(std::istream& inps)
   bjsn::stream_parser p;
   std::string         line;
 
+  // \todo skips ws in strings
   while (inps >> line)
   {
     bjsn::error_code ec;
@@ -132,8 +133,6 @@ int main(int argc, const char** argv)
     || noSwitch0(arguments, argn,              setFile)
     ;
   }
-
-
 
   bjsn::value   all         = parseStream(std::cin);
   bjsn::object& allobj      = all.as_object();

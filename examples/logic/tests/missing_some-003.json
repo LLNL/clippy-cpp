@@ -1,0 +1,2 @@
+{"rule":{"if":[{"merge":[{"missing":["first_name", "last_name"]},{"missing_some":[1, ["cell_phone", "home_phone"] ]}]},"We require first name, last name, and one phone number.","OK to proceed"]},"data":{"first_name":"Bruce", "last_name":"Wayne"},"expected":"We require first name, last name, and one phone number."}
+

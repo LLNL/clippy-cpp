@@ -1,0 +1,1 @@
+{"rule":{"reduce":[{"var":"integers"},{"+":[{"var":"current"}, {"var":"accumulator"}]},0]},"data":{"integers":[1,2,3,4,5]},"expected":15}

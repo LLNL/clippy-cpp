@@ -1,0 +1,2 @@
+{"rule":{"if":[{"missing":["a", "b"]},"Not enough fruit","OK to proceed"]},"data":{"a":"apple", "b":"banana"},"expected":"OK to proceed"}
+

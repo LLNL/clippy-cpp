@@ -8,6 +8,7 @@
 #include <memory>
 #include <regex>
 #include <unordered_map>
+#include <numeric>
 
 #include <boost/json.hpp>
 
@@ -342,8 +343,7 @@ namespace json_logic
       void accept(Visitor&) final;
   };
 
-
-  // string operations
+  // data access
   struct Var       : Operator
   {
       enum { computed = -1 };
@@ -357,6 +357,22 @@ namespace json_logic
       int idx = computed;
   };
 
+  /// Missing is modeled as operator with arbitrary number of arguments
+  /// \details
+  /// In Calculator::visit(Missing&):
+  ///   If the first argument is an array, only the array will be considered
+  ///   otherwise all operands are treated as array.
+  struct Missing : Operator
+  {
+      void accept(Visitor&) final;
+  };
+
+  struct MissingSome : OperatorN<2>
+  {
+      void accept(Visitor&) final;
+  };
+
+  // string operations
   struct Cat       : Operator
   {
       void accept(Visitor&) final;
@@ -505,6 +521,8 @@ namespace json_logic
     virtual void visit(Substr&)       = 0;
     virtual void visit(In&)           = 0;
     virtual void visit(Var&)          = 0;
+    virtual void visit(Missing&)      = 0;
+    virtual void visit(MissingSome&)  = 0;
     virtual void visit(Log&)          = 0;
 
     // control structure
@@ -527,49 +545,51 @@ namespace json_logic
   };
 
   // accept implementations
-  void Eq::accept(Visitor& v)         { v.visit(*this); }
-  void StrictEq::accept(Visitor& v)   { v.visit(*this); }
-  void Neq::accept(Visitor& v)        { v.visit(*this); }
-  void StrictNeq::accept(Visitor& v)  { v.visit(*this); }
-  void Less::accept(Visitor& v)       { v.visit(*this); }
-  void Greater::accept(Visitor& v)    { v.visit(*this); }
-  void Leq::accept(Visitor& v)        { v.visit(*this); }
-  void Geq::accept(Visitor& v)        { v.visit(*this); }
-  void And::accept(Visitor& v)        { v.visit(*this); }
-  void Or::accept(Visitor& v)         { v.visit(*this); }
-  void Not::accept(Visitor& v)        { v.visit(*this); }
-  void NotNot::accept(Visitor& v)     { v.visit(*this); }
-  void Add::accept(Visitor& v)        { v.visit(*this); }
-  void Sub::accept(Visitor& v)        { v.visit(*this); }
-  void Mul::accept(Visitor& v)        { v.visit(*this); }
-  void Div::accept(Visitor& v)        { v.visit(*this); }
-  void Mod::accept(Visitor& v)        { v.visit(*this); }
-  void Min::accept(Visitor& v)        { v.visit(*this); }
-  void Max::accept(Visitor& v)        { v.visit(*this); }
-  void Map::accept(Visitor& v)        { v.visit(*this); }
-  void Reduce::accept(Visitor& v)     { v.visit(*this); }
-  void Filter::accept(Visitor& v)     { v.visit(*this); }
-  void All::accept(Visitor& v)        { v.visit(*this); }
-  void None::accept(Visitor& v)       { v.visit(*this); }
-  void Some::accept(Visitor& v)       { v.visit(*this); }
-  void Array::accept(Visitor& v)      { v.visit(*this); }
-  void Merge::accept(Visitor& v)      { v.visit(*this); }
-  void Cat::accept(Visitor& v)        { v.visit(*this); }
-  void Substr::accept(Visitor& v)     { v.visit(*this); }
-  void In::accept(Visitor& v)         { v.visit(*this); }
-  void Var::accept(Visitor& v)        { v.visit(*this); }
-  void Log::accept(Visitor& v)        { v.visit(*this); }
-  void If::accept(Visitor& v)         { v.visit(*this); }
+  void Eq::accept(Visitor& v)          { v.visit(*this); }
+  void StrictEq::accept(Visitor& v)    { v.visit(*this); }
+  void Neq::accept(Visitor& v)         { v.visit(*this); }
+  void StrictNeq::accept(Visitor& v)   { v.visit(*this); }
+  void Less::accept(Visitor& v)        { v.visit(*this); }
+  void Greater::accept(Visitor& v)     { v.visit(*this); }
+  void Leq::accept(Visitor& v)         { v.visit(*this); }
+  void Geq::accept(Visitor& v)         { v.visit(*this); }
+  void And::accept(Visitor& v)         { v.visit(*this); }
+  void Or::accept(Visitor& v)          { v.visit(*this); }
+  void Not::accept(Visitor& v)         { v.visit(*this); }
+  void NotNot::accept(Visitor& v)      { v.visit(*this); }
+  void Add::accept(Visitor& v)         { v.visit(*this); }
+  void Sub::accept(Visitor& v)         { v.visit(*this); }
+  void Mul::accept(Visitor& v)         { v.visit(*this); }
+  void Div::accept(Visitor& v)         { v.visit(*this); }
+  void Mod::accept(Visitor& v)         { v.visit(*this); }
+  void Min::accept(Visitor& v)         { v.visit(*this); }
+  void Max::accept(Visitor& v)         { v.visit(*this); }
+  void Map::accept(Visitor& v)         { v.visit(*this); }
+  void Reduce::accept(Visitor& v)      { v.visit(*this); }
+  void Filter::accept(Visitor& v)      { v.visit(*this); }
+  void All::accept(Visitor& v)         { v.visit(*this); }
+  void None::accept(Visitor& v)        { v.visit(*this); }
+  void Some::accept(Visitor& v)        { v.visit(*this); }
+  void Array::accept(Visitor& v)       { v.visit(*this); }
+  void Merge::accept(Visitor& v)       { v.visit(*this); }
+  void Cat::accept(Visitor& v)         { v.visit(*this); }
+  void Substr::accept(Visitor& v)      { v.visit(*this); }
+  void In::accept(Visitor& v)          { v.visit(*this); }
+  void Var::accept(Visitor& v)         { v.visit(*this); }
+  void Missing::accept(Visitor& v)     { v.visit(*this); }
+  void MissingSome::accept(Visitor& v) { v.visit(*this); }
+  void Log::accept(Visitor& v)         { v.visit(*this); }
+  void If::accept(Visitor& v)          { v.visit(*this); }
 
-  void NullVal::accept(Visitor& v)    { v.visit(*this); }
-  void BoolVal::accept(Visitor& v)    { v.visit(*this); }
-  void IntVal::accept(Visitor& v)     { v.visit(*this); }
-  void UintVal::accept(Visitor& v)    { v.visit(*this); }
-  void DoubleVal::accept(Visitor& v)  { v.visit(*this); }
-  void StringVal::accept(Visitor& v)  { v.visit(*this); }
+  void NullVal::accept(Visitor& v)     { v.visit(*this); }
+  void BoolVal::accept(Visitor& v)     { v.visit(*this); }
+  void IntVal::accept(Visitor& v)      { v.visit(*this); }
+  void UintVal::accept(Visitor& v)     { v.visit(*this); }
+  void DoubleVal::accept(Visitor& v)   { v.visit(*this); }
+  void StringVal::accept(Visitor& v)   { v.visit(*this); }
 
-  void Error::accept(Visitor& v)      { v.visit(*this); }
-  void RegexMatch::accept(Visitor& v) { v.visit(*this); }
+  void Error::accept(Visitor& v)       { v.visit(*this); }
+  void RegexMatch::accept(Visitor& v)  { v.visit(*this); }
 
   // toJson implementations
   template <class T>
@@ -591,55 +611,57 @@ namespace json_logic
 
   struct FwdVisitor : Visitor
   {
-    void visit(Expr&)         override {} // error
-    void visit(Operator& n)   override { visit(up_cast<Expr>(n)); }
-    void visit(Eq& n)         override { visit(up_cast<Operator>(n)); }
-    void visit(StrictEq& n)   override { visit(up_cast<Operator>(n)); }
-    void visit(Neq& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(StrictNeq& n)  override { visit(up_cast<Operator>(n)); }
-    void visit(Less& n)       override { visit(up_cast<Operator>(n)); }
-    void visit(Greater& n)    override { visit(up_cast<Operator>(n)); }
-    void visit(Leq& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Geq& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(And& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Or& n)         override { visit(up_cast<Operator>(n)); }
-    void visit(Not& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(NotNot& n)     override { visit(up_cast<Operator>(n)); }
-    void visit(Add& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Sub& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Mul& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Div& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Mod& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Min& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Max& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Map& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Reduce& n)     override { visit(up_cast<Operator>(n)); }
-    void visit(Filter& n)     override { visit(up_cast<Operator>(n)); }
-    void visit(All& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(None& n)       override { visit(up_cast<Operator>(n)); }
-    void visit(Some& n)       override { visit(up_cast<Operator>(n)); }
-    void visit(Array& n)      override { visit(up_cast<Operator>(n)); }
-    void visit(Merge& n)      override { visit(up_cast<Operator>(n)); }
-    void visit(Cat& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Substr& n)     override { visit(up_cast<Operator>(n)); }
-    void visit(In& n)         override { visit(up_cast<Operator>(n)); }
-    void visit(Var& n)        override { visit(up_cast<Operator>(n)); }
-    void visit(Log& n)        override { visit(up_cast<Operator>(n)); }
+    void visit(Expr&)          override {} // error
+    void visit(Operator& n)    override { visit(up_cast<Expr>(n)); }
+    void visit(Eq& n)          override { visit(up_cast<Operator>(n)); }
+    void visit(StrictEq& n)    override { visit(up_cast<Operator>(n)); }
+    void visit(Neq& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(StrictNeq& n)   override { visit(up_cast<Operator>(n)); }
+    void visit(Less& n)        override { visit(up_cast<Operator>(n)); }
+    void visit(Greater& n)     override { visit(up_cast<Operator>(n)); }
+    void visit(Leq& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Geq& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(And& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Or& n)          override { visit(up_cast<Operator>(n)); }
+    void visit(Not& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(NotNot& n)      override { visit(up_cast<Operator>(n)); }
+    void visit(Add& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Sub& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Mul& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Div& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Mod& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Min& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Max& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Map& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Reduce& n)      override { visit(up_cast<Operator>(n)); }
+    void visit(Filter& n)      override { visit(up_cast<Operator>(n)); }
+    void visit(All& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(None& n)        override { visit(up_cast<Operator>(n)); }
+    void visit(Some& n)        override { visit(up_cast<Operator>(n)); }
+    void visit(Array& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Merge& n)       override { visit(up_cast<Operator>(n)); }
+    void visit(Cat& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Substr& n)      override { visit(up_cast<Operator>(n)); }
+    void visit(In& n)          override { visit(up_cast<Operator>(n)); }
+    void visit(Var& n)         override { visit(up_cast<Operator>(n)); }
+    void visit(Missing& n)     override { visit(up_cast<Operator>(n)); }
+    void visit(MissingSome& n) override { visit(up_cast<Operator>(n)); }
+    void visit(Log& n)         override { visit(up_cast<Operator>(n)); }
 
-    void visit(If& n)         override { visit(up_cast<Expr>(n)); }
+    void visit(If& n)          override { visit(up_cast<Expr>(n)); }
 
-    void visit(Value& n)      override { visit(up_cast<Expr>(n)); }
-    void visit(NullVal& n)    override { visit(up_cast<Value>(n)); }
-    void visit(BoolVal& n)    override { visit(up_cast<Value>(n)); }
-    void visit(IntVal& n)     override { visit(up_cast<Value>(n)); }
-    void visit(UintVal& n)    override { visit(up_cast<Value>(n)); }
-    void visit(DoubleVal& n)  override { visit(up_cast<Value>(n)); }
-    void visit(StringVal& n)  override { visit(up_cast<Value>(n)); }
+    void visit(Value& n)       override { visit(up_cast<Expr>(n)); }
+    void visit(NullVal& n)     override { visit(up_cast<Value>(n)); }
+    void visit(BoolVal& n)     override { visit(up_cast<Value>(n)); }
+    void visit(IntVal& n)      override { visit(up_cast<Value>(n)); }
+    void visit(UintVal& n)     override { visit(up_cast<Value>(n)); }
+    void visit(DoubleVal& n)   override { visit(up_cast<Value>(n)); }
+    void visit(StringVal& n)   override { visit(up_cast<Value>(n)); }
 
-    void visit(Error& n)      override { visit(up_cast<Expr>(n)); }
+    void visit(Error& n)       override { visit(up_cast<Expr>(n)); }
 
     // extensions
-    void visit(RegexMatch& n) override { visit(up_cast<Expr>(n)); }
+    void visit(RegexMatch& n)  override { visit(up_cast<Expr>(n)); }
   };
 
   template <class UnderVisitorT>
@@ -651,51 +673,53 @@ namespace json_logic
       {}
 
       // list of all concrete types
-      void visit(Eq& n)         final { self.gvisit(n); }
-      void visit(StrictEq& n)   final { self.gvisit(n); }
-      void visit(Neq& n)        final { self.gvisit(n); }
-      void visit(StrictNeq& n)  final { self.gvisit(n); }
-      void visit(Less& n)       final { self.gvisit(n); }
-      void visit(Greater& n)    final { self.gvisit(n); }
-      void visit(Leq& n)        final { self.gvisit(n); }
-      void visit(Geq& n)        final { self.gvisit(n); }
-      void visit(And& n)        final { self.gvisit(n); }
-      void visit(Or& n)         final { self.gvisit(n); }
-      void visit(Not& n)        final { self.gvisit(n); }
-      void visit(NotNot& n)     final { self.gvisit(n); }
-      void visit(Add& n)        final { self.gvisit(n); }
-      void visit(Sub& n)        final { self.gvisit(n); }
-      void visit(Mul& n)        final { self.gvisit(n); }
-      void visit(Div& n)        final { self.gvisit(n); }
-      void visit(Mod& n)        final { self.gvisit(n); }
-      void visit(Min& n)        final { self.gvisit(n); }
-      void visit(Max& n)        final { self.gvisit(n); }
-      void visit(Map& n)        final { self.gvisit(n); }
-      void visit(Reduce& n)     final { self.gvisit(n); }
-      void visit(Filter& n)     final { self.gvisit(n); }
-      void visit(All& n)        final { self.gvisit(n); }
-      void visit(None& n)       final { self.gvisit(n); }
-      void visit(Some& n)       final { self.gvisit(n); }
-      void visit(Array& n)      final { self.gvisit(n); }
-      void visit(Merge& n)      final { self.gvisit(n); }
-      void visit(Cat& n)        final { self.gvisit(n); }
-      void visit(Substr& n)     final { self.gvisit(n); }
-      void visit(In& n)         final { self.gvisit(n); }
-      void visit(Var& n)        final { self.gvisit(n); }
-      void visit(Log& n)        final { self.gvisit(n); }
+      void visit(Eq& n)          final { self.gvisit(n); }
+      void visit(StrictEq& n)    final { self.gvisit(n); }
+      void visit(Neq& n)         final { self.gvisit(n); }
+      void visit(StrictNeq& n)   final { self.gvisit(n); }
+      void visit(Less& n)        final { self.gvisit(n); }
+      void visit(Greater& n)     final { self.gvisit(n); }
+      void visit(Leq& n)         final { self.gvisit(n); }
+      void visit(Geq& n)         final { self.gvisit(n); }
+      void visit(And& n)         final { self.gvisit(n); }
+      void visit(Or& n)          final { self.gvisit(n); }
+      void visit(Not& n)         final { self.gvisit(n); }
+      void visit(NotNot& n)      final { self.gvisit(n); }
+      void visit(Add& n)         final { self.gvisit(n); }
+      void visit(Sub& n)         final { self.gvisit(n); }
+      void visit(Mul& n)         final { self.gvisit(n); }
+      void visit(Div& n)         final { self.gvisit(n); }
+      void visit(Mod& n)         final { self.gvisit(n); }
+      void visit(Min& n)         final { self.gvisit(n); }
+      void visit(Max& n)         final { self.gvisit(n); }
+      void visit(Map& n)         final { self.gvisit(n); }
+      void visit(Reduce& n)      final { self.gvisit(n); }
+      void visit(Filter& n)      final { self.gvisit(n); }
+      void visit(All& n)         final { self.gvisit(n); }
+      void visit(None& n)        final { self.gvisit(n); }
+      void visit(Some& n)        final { self.gvisit(n); }
+      void visit(Array& n)       final { self.gvisit(n); }
+      void visit(Merge& n)       final { self.gvisit(n); }
+      void visit(Cat& n)         final { self.gvisit(n); }
+      void visit(Substr& n)      final { self.gvisit(n); }
+      void visit(In& n)          final { self.gvisit(n); }
+      void visit(Var& n)         final { self.gvisit(n); }
+      void visit(Missing& n)     final { self.gvisit(n); }
+      void visit(MissingSome& n) final { self.gvisit(n); }
+      void visit(Log& n)         final { self.gvisit(n); }
 
-      void visit(If& n)         final { self.gvisit(n); }
+      void visit(If& n)          final { self.gvisit(n); }
 
       // void visit(Value& n)      final { self.gvisit(n); }
-      void visit(NullVal& n)    final { self.gvisit(n); }
-      void visit(BoolVal& n)    final { self.gvisit(n); }
-      void visit(IntVal& n)     final { self.gvisit(n); }
-      void visit(UintVal& n)    final { self.gvisit(n); }
-      void visit(DoubleVal& n)  final { self.gvisit(n); }
-      void visit(StringVal& n)  final { self.gvisit(n); }
+      void visit(NullVal& n)     final { self.gvisit(n); }
+      void visit(BoolVal& n)     final { self.gvisit(n); }
+      void visit(IntVal& n)      final { self.gvisit(n); }
+      void visit(UintVal& n)     final { self.gvisit(n); }
+      void visit(DoubleVal& n)   final { self.gvisit(n); }
+      void visit(StringVal& n)   final { self.gvisit(n); }
 
-      void visit(Error& n)      final { self.gvisit(n); }
-      void visit(RegexMatch& n) final { self.gvisit(n); }
+      void visit(Error& n)       final { self.gvisit(n); }
+      void visit(RegexMatch& n)  final { self.gvisit(n); }
 
     private:
       UnderVisitorT& self;
@@ -843,39 +867,41 @@ namespace json_logic
     AnyExpr
     translateNode_internal(JsonExpr& n, VarMap& varmap)
     {
-      static const DispatchTable dt = { { "==",     &mkOperator<Eq> },
-                                        { "===",    &mkOperator<StrictEq> },
-                                        { "!=",     &mkOperator<Neq> },
-                                        { "!==",    &mkOperator<StrictNeq> },
-                                        { "if",     &mkOperator<If> },
-                                        { "!",      &mkOperator<Not> },
-                                        { "!!",     &mkOperator<NotNot> },
-                                        { "or",     &mkOperator<Or> },
-                                        { "and",    &mkOperator<And> },
-                                        { ">",      &mkOperator<Greater> },
-                                        { ">=",     &mkOperator<Geq> },
-                                        { "<",      &mkOperator<Less> },
-                                        { "<=",     &mkOperator<Leq> },
-                                        { "max",    &mkOperator<Max> },
-                                        { "min",    &mkOperator<Min> },
-                                        { "+",      &mkOperator<Add> },
-                                        { "-",      &mkOperator<Sub> },
-                                        { "*",      &mkOperator<Mul> },
-                                        { "/",      &mkOperator<Div> },
-                                        { "%",      &mkOperator<Mod> },
-                                        { "map",    &mkOperator<Map> },
-                                        { "reduce", &mkOperator<Reduce> },
-                                        { "filter", &mkOperator<Filter> },
-                                        { "all",    &mkOperator<All> },
-                                        { "none",   &mkOperator<None> },
-                                        { "some",   &mkOperator<Some> },
-                                        { "merge",  &mkOperator<Merge> },
-                                        { "in",     &mkOperator<In> },
-                                        { "cat",    &mkOperator<Cat> },
-                                        { "log",    &mkOperator<Log> },
-                                        { "var",    &mkVar },
+      static const DispatchTable dt = { { "==",           &mkOperator<Eq> },
+                                        { "===",          &mkOperator<StrictEq> },
+                                        { "!=",           &mkOperator<Neq> },
+                                        { "!==",          &mkOperator<StrictNeq> },
+                                        { "if",           &mkOperator<If> },
+                                        { "!",            &mkOperator<Not> },
+                                        { "!!",           &mkOperator<NotNot> },
+                                        { "or",           &mkOperator<Or> },
+                                        { "and",          &mkOperator<And> },
+                                        { ">",            &mkOperator<Greater> },
+                                        { ">=",           &mkOperator<Geq> },
+                                        { "<",            &mkOperator<Less> },
+                                        { "<=",           &mkOperator<Leq> },
+                                        { "max",          &mkOperator<Max> },
+                                        { "min",          &mkOperator<Min> },
+                                        { "+",            &mkOperator<Add> },
+                                        { "-",            &mkOperator<Sub> },
+                                        { "*",            &mkOperator<Mul> },
+                                        { "/",            &mkOperator<Div> },
+                                        { "%",            &mkOperator<Mod> },
+                                        { "map",          &mkOperator<Map> },
+                                        { "reduce",       &mkOperator<Reduce> },
+                                        { "filter",       &mkOperator<Filter> },
+                                        { "all",          &mkOperator<All> },
+                                        { "none",         &mkOperator<None> },
+                                        { "some",         &mkOperator<Some> },
+                                        { "merge",        &mkOperator<Merge> },
+                                        { "in",           &mkOperator<In> },
+                                        { "cat",          &mkOperator<Cat> },
+                                        { "log",          &mkOperator<Log> },
+                                        { "var",          &mkVar },
+                                        { "missing",      &mkOperator<Missing> },
+                                        { "missing_some", &mkOperator<MissingSome> },
                                         /// extensions
-                                        { "regex",  &mkOperator<RegexMatch> },
+                                        { "regex",        &mkOperator<RegexMatch> },
                                       };
 
       Expr* res = nullptr;
@@ -2911,6 +2937,8 @@ namespace json_logic
       void visit(Substr&)       final;
       void visit(In&)           final;
       void visit(Var&)          final;
+      void visit(Missing&)      final;
+      void visit(MissingSome&)  final;
       void visit(Log&)          final;
 
       void visit(If&)           final;
@@ -2968,6 +2996,9 @@ namespace json_logic
       {
         calcres = toValueExpr(val.value());
       }
+
+      /// auxiliary missing method
+      std::size_t missing_aux(Array& elems);
   };
 
 
@@ -2982,7 +3013,7 @@ namespace json_logic
         ValueExpr* elptr = &elem; // workaround, b/c unique_ptr cannot be captured
 
         Calculator sub{ [elptr]
-                        (const json::value& keyval, int) mutable -> ValueExpr
+                        (const json::value& keyval, int) -> ValueExpr
                         {
                           if (const json::string* pkey = keyval.if_string())
                           {
@@ -3033,6 +3064,53 @@ namespace json_logic
       }
   };
 
+/*
+  template <class InputIterator, class BinaryOperation>
+  ValueExpr
+  accumulate_move(InputIterator pos, InputIterator lim, ValueExpr accu, BinaryOperation binop)
+  {
+    for ( ; pos != lim; ++pos)
+      accu = binop(std::move(accu), std::move(*first));
+
+    return accu;
+  }
+*/
+
+  struct SequenceReduction
+  {
+      SequenceReduction(Expr& e, std::ostream& logstream)
+      : expr(e), logger(logstream)
+      {}
+
+      ValueExpr operator()(ValueExpr& accu, ValueExpr elem) const
+      {
+        ValueExpr* acptr = &accu; // workaround, b/c unique_ptr cannot be captured
+        ValueExpr* elptr = &elem; // workaround, b/c unique_ptr cannot be captured
+
+        Calculator sub{ [acptr,elptr]
+                        (const json::value& keyval, int) -> ValueExpr
+                        {
+                          if (const json::string* pkey = keyval.if_string())
+                          {
+                            if (*pkey == "current")
+                              return cloneExpr(*elptr);
+
+                            if (*pkey == "accumulator")
+                              return cloneExpr(*acptr);
+                          }
+
+                          return toValueExpr(nullptr);
+                        },
+                        logger
+                      };
+
+        return sub.eval(expr);
+      }
+
+    private:
+      Expr&         expr;
+      std::ostream& logger;
+  };
 
   template <class ValueT>
   ValueT
@@ -3329,7 +3407,31 @@ namespace json_logic
     reduce(n, Calc<Merge>{});
   }
 
-  void Calculator::visit(Reduce&)         { unsupported(); }
+
+
+  void Calculator::visit(Reduce& n)
+  {
+    ValueExpr  arr    = eval(n.operand(0));
+    Expr&      expr   = n.operand(1);
+    ValueExpr  accu   = eval(n.operand(2));
+    ValueExpr* acptr  = &accu;
+
+    auto      op     =
+      [&expr, acptr, calclogger = &this->logger]
+      (Array& arrop) -> ValueExpr
+      {
+        // non destructive predicate is required for evaluating and copying
+        return std::accumulate( std::make_move_iterator(arrop.begin()), std::make_move_iterator(arrop.end()),
+                                std::move(*acptr),
+                                SequenceReduction{expr, *calclogger}
+                              );
+      };
+
+    calcres = with_type<Array>( arr.get(),
+                                op,
+                                []()->ValueExpr { return nullptr; }
+                              );
+  }
 
   void Calculator::visit(Map& n)
   {
@@ -3436,6 +3538,70 @@ namespace json_logic
       calcres = (n.num_evaluated_operands() > 1) ? eval(n.operand(1))
                                                  : toValueExpr(nullptr);
     }
+  }
+
+  std::size_t Calculator::missing_aux(Array& elems)
+  {
+    auto            avail = [calc = this](ValueExpr& v) -> bool
+                            {
+                              try
+                              {
+                                Value& val = down_cast<Value>(*v);
+
+                                calc->vars(val.toJson(), -1 /* not in varmap */);
+                              }
+                              catch (...)
+                              {
+                                return false;
+                              }
+
+                              return true;
+                            };
+
+    Array::iterator beg   = elems.begin();
+    Array::iterator lim   = elems.end();
+    Array::iterator pos   = std::remove_if( beg, lim, avail );
+    std::size_t     res   = std::distance(pos, lim);
+
+    elems.operands().erase(pos, lim);
+    return res;
+  }
+
+  void Calculator::visit(Missing& n)
+  {
+    ValueExpr arg   = eval(n.operand(0));
+    auto      nonArrayHandler = [&arg, &n, calc = this]() -> Array&
+              {
+                Array& res = deref(new Array);
+
+                res.set_operands(std::move(n).move_operands());
+                res.operands().front().swap(arg);
+                arg.reset(&res);
+                calc->visit(res);
+
+                return res;
+              };
+
+    Array&    elems = with_type<Array>( arg.get(),
+                                        [](Array& array) -> Array& { return array; }, // ignore other args
+                                        nonArrayHandler
+                                      );
+
+    missing_aux(elems);
+    calcres = std::move(arg);
+  }
+
+  void Calculator::visit(MissingSome& n)
+  {
+    const std::uint64_t minreq = unpackValue<std::uint64_t>(eval(n.operand(0)));
+    ValueExpr           arr    = eval(n.operand(1));
+    Array&              elems  = down_cast<Array>(*arr); // evaluated elements
+    std::size_t         avail  = missing_aux(elems);
+
+    if (avail >= minreq)
+      elems.operands().clear();
+
+    calcres = std::move(arr);
   }
 
   void Calculator::visit(If& n)
