@@ -3082,7 +3082,12 @@ namespace json_logic
       : expr(e), logger(logstream)
       {}
 
-      ValueExpr operator()(ValueExpr& accu, ValueExpr elem) const
+      // for compatibility reasons, the first argument is passed in as templated && ref.
+      //   g++ -std=c++17 passes in a & ref, while g++ -std=c++20 passes in a &&.
+      // the templated && together with reference collapsing make the code portable
+      // across standard versions.
+      template <class ValueExprT>
+      ValueExpr operator()(ValueExprT&& accu, ValueExpr elem) const
       {
         ValueExpr* acptr = &accu; // workaround, b/c unique_ptr cannot be captured
         ValueExpr* elptr = &elem; // workaround, b/c unique_ptr cannot be captured
@@ -3406,8 +3411,6 @@ namespace json_logic
   {
     reduce(n, Calc<Merge>{});
   }
-
-
 
   void Calculator::visit(Reduce& n)
   {

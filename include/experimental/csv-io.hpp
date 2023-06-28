@@ -202,6 +202,22 @@ std::ostream& operator<<(std::ostream& os, WriteWrapper<std::optional<T>> ww)
   return os;
 }
 
+std::ostream& operator<<(std::ostream& os, WriteWrapper<std::string> ww)
+{
+  os << '"';
+
+  for (char ch : ww.elem)
+  {
+    os << ch;
+    if (ch == '"') os << ch;
+  }
+
+  os << '"';
+
+  return os;
+}
+
+
 
 template <class T>
 void writeElem(std::ostream& os, T&& elem, size_t col)
