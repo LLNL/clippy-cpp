@@ -3637,8 +3637,7 @@ namespace json_logic
 
   void Calculator::visit(Log& n)
   {
-    const int num = n.num_evaluated_operands();
-    assert(num == 1);
+    assert(n.num_evaluated_operands() == 1);
 
     calcres = eval(n.operand(0));
 
