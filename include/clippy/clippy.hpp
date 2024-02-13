@@ -17,9 +17,9 @@
 #include "clippy-object.hpp"
 
 
-#if __has_include(<mpi.h>)
-#include <mpi.h>
-#endif
+// #if __has_include(<mpi.h>)
+// #include <mpi.h>
+// #endif
 
 
 #if __has_include("clippy-log.hpp")
