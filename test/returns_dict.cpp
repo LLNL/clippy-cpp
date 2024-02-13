@@ -8,7 +8,7 @@
 
 int main(int argc, char **argv) {
   clippy::clippy clip("returns_dict", "Tests returning a dict");
-  clip.returns<size_t>("The Int");
+  clip.returns<std::unordered_map<std::string, int>>("The Dict");
   if (clip.parse(argc, argv)) {
     return 0;
   }
