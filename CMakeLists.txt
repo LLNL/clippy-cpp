@@ -13,6 +13,7 @@ project(CLIPPy
     LANGUAGES CXX)
 
 include(FetchContent) 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Only do these if this is the main project, and not if it is included through add_subdirectory
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
