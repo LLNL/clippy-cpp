@@ -19,11 +19,7 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  int v = 42;
-  if (!clip.get<bool>("fix42")) {
-    v = std::rand() & clip.get<int>("max");
-  }
-
+  int v = (clip.get<bool>("fix42")) ? 42 : (std::rand() % clip.get<int>("max"));
   clip.to_return(v);
 
   return 0;
