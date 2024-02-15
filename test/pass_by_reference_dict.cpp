@@ -7,7 +7,7 @@
 
 int main(int argc, char **argv) {
   clippy::clippy clip("pass_by_reference_dict", "Call with dict");
-  clip.add_required<std::string>("debug_info", "Required dict");
+  clip.add_required<std::map<std::string, std::string>>("debug_info", "Required dict");
   
   if (clip.parse(argc, argv)) { return 0; }
 

@@ -7,7 +7,7 @@
 
 int main(int argc, char **argv) {
   clippy::clippy clip("pass_by_reference_vector", "Call with vector");
-  clip.add_required<std::string>("vec", "Required vector");
+  clip.add_required<std::vector<size_t>>("vec", "Required vector");
   
   if (clip.parse(argc, argv)) { return 0; }
 
