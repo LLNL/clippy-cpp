@@ -96,7 +96,7 @@ public:
 
   ~clippy() {
     const bool requiresResponse =
-        !(m_json_return.is_null() && m_json_state.empty());
+        !(m_json_return.is_null() && m_json_state.empty() && m_json_overwrite_args.empty());
 
     if (requiresResponse) {
       int rank = 0;
