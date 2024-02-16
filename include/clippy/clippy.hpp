@@ -293,7 +293,7 @@ public:
               m_json_input.get_object().if_contains(state_key))
         m_json_state = stateValue->as_object();
 
-    m_json_state[name] = std::move(val);
+    m_json_state[name] = boost::json::value_from(val);
   }
 
   template <typename T>
