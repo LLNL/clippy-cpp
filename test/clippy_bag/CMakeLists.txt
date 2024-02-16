@@ -1,4 +1,6 @@
 add_test(clippy_bag_init)
 add_test(clippy_bag_str)
+add_test(clippy_bag_repr)
 add_test(clippy_bag_insert)
-add_test(clippy_bag_remove_if)
+add_test(clippy_bag_remove)
+add_test(clippy_bag_size)
