@@ -23,3 +23,5 @@ add_test(call_with_string)
 add_test(call_with_optional_string)
 add_test(pass_by_reference_dict)
 add_test(pass_by_reference_vector)
+
+add_subdirectory(clippy_bag)
