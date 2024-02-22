@@ -14,6 +14,8 @@ function ( add_test test_name )
   include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 endfunction()
 
+add_test(missing_version)
+add_test(old_version)
 add_test(returns_string)
 add_test(returns_int)
 add_test(returns_bool)
