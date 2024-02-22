@@ -13,6 +13,7 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <clippy/version.hpp>
 
 #include "clippy-object.hpp"
 
@@ -82,6 +83,7 @@ public:
   clippy(const std::string &name, const std::string &desc) {
     get_value(m_json_config, "method_name") = name;
     get_value(m_json_config, "desc") = desc;
+    get_value(m_json_config, "version") = std::string(CLIPPY_VERSION_NAME);
   }
 
   /// Makes a method a member of a class \ref className and documentation \ref
