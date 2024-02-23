@@ -1,0 +1,6 @@
+add_test(__init__)
+add_test(__str__)
+add_test(__repr__)
+add_test(insert)
+add_test(remove)
+add_test(size)
