@@ -15,11 +15,10 @@ static const std::string state_name = "INTERNAL";
 
 int main(int argc, char **argv) {
   clippy::clippy clip{method_name, "Inserts a string into a ClippyBag"};
-
-  clip.member_of("ClippyBag", "Example bag container");
   clip.add_required<std::string>("item", "Item to insert");
   clip.add_required_state<std::vector<std::string>>(state_name,
                                                     "Internal container");
+  clip.returns_self();
 
   // no object-state requirements in constructor
   if (clip.parse(argc, argv)) {
@@ -30,6 +29,6 @@ int main(int argc, char **argv) {
   auto the_bag = clip.get_state<std::vector<std::string>>(state_name);
   the_bag.push_back(item);
   clip.set_state(state_name, the_bag);
-
+  clip.return_self();
   return 0;
 }

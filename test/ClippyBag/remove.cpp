@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
   clip.add_optional<bool>("all", "Remove all?", false);
   clip.add_required_state<std::list<std::string>>(state_name,
                                                   "Internal container");
-
+  clip.returns_self();
   // no object-state requirements in constructor
   if (clip.parse(argc, argv)) {
     return 0;
@@ -41,5 +41,6 @@ int main(int argc, char **argv) {
     }
   }
   clip.set_state(state_name, the_bag);
+  clip.return_self();
   return 0;
 }

@@ -168,6 +168,15 @@ public:
     get_value(m_json_config, returns_key, "desc") = desc;
   }
 
+  void returns_self() {
+    get_value(m_json_config, "returns_self") = true;
+    m_returns_self = true;
+  }
+
+  void return_self() {
+   m_returns_self = true;
+  }
+
   template <typename T> void to_return(const T &value) {
     // if (detail::get_type_name<T>() !=
     //     m_json_config[returns_key]["type"].get<std::string>()) {
@@ -176,11 +185,7 @@ public:
     m_json_return = boost::json::value_from(value);
   }
 
-  /*
-    void to_return(clippy::value value) {
-      m_json_return = std::move(value);
-    }
-  */
+
   void to_return(::clippy::object value) {
     m_json_return = std::move(value).json();
   }
@@ -319,7 +324,9 @@ private:
     boost::json::object json_response;
 
     // incl. the response if it has been set
-    if (!m_json_return.is_null())
+    if(m_returns_self) {
+      json_response["returns_self"] = true;
+    } else if (!m_json_return.is_null())
       json_response[returns_key] = m_json_return;
 
     // only communicate the state if it has been explicitly set.
@@ -468,6 +475,7 @@ private:
   boost::json::value m_json_return;
   boost::json::object m_json_state;
   boost::json::object m_json_overwrite_args;
+  bool m_returns_self=false;
 
   boost::json::object *m_json_input_state = nullptr;
   size_t m_next_position = 0;
