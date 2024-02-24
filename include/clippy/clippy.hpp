@@ -168,6 +168,14 @@ public:
     get_value(m_json_config, returns_key, "desc") = desc;
   }
 
+  void returns_self() {
+    get_value(m_json_config, "returns_self") = true;
+  }
+
+  void return_self() {
+   get_value(m_json_return, "returns_self") = true;
+  }
+
   template <typename T> void to_return(const T &value) {
     // if (detail::get_type_name<T>() !=
     //     m_json_config[returns_key]["type"].get<std::string>()) {
@@ -176,11 +184,7 @@ public:
     m_json_return = boost::json::value_from(value);
   }
 
-  /*
-    void to_return(clippy::value value) {
-      m_json_return = std::move(value);
-    }
-  */
+
   void to_return(::clippy::object value) {
     m_json_return = std::move(value).json();
   }
