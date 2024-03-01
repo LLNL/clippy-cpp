@@ -19,4 +19,4 @@ endfunction()
 
 add_subdirectory(TestBag)
 add_subdirectory(TestSet)
-# add_subdirectory(TestFunctions)
+add_subdirectory(TestFunctions)
