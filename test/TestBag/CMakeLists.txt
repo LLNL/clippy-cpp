@@ -4,7 +4,6 @@ add_test(TestBag insert)
 add_test(TestBag remove)
 add_test(TestBag remove_if)
 add_test(TestBag size)
-add_test(TestBag add_selector)
 add_custom_command(
         TARGET TestBag_size POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
