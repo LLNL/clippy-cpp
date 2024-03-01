@@ -1,6 +1,6 @@
 {
   "__doc__" : "A bag data structure",
-  "selectors" : {
+  "initial_selectors" : {
     "value" : "A value in the container"
   }
 }

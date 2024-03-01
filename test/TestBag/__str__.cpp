@@ -9,15 +9,13 @@
 
 namespace boostjsn = boost::json;
 
-static const std::string class_name = "ClippyBag";
-static const std::string method_name = "__repr__";
+static const std::string method_name = "__str__";
 static const std::string state_name = "INTERNAL";
 
 int main(int argc, char **argv) {
-  clippy::clippy clip{method_name, "Repr method for ClippyBag"};
+  clippy::clippy clip{method_name, "Str method for TestBag"};
 
-  clip.member_of("ClippyBag", "Example bag container");
-  clip.add_required_state<std::vector<std::string>>(state_name,
+  clip.add_required_state<std::vector<int>>(state_name,
                                                     "Internal container");
 
   clip.returns<std::string>("String of data.");
@@ -27,7 +25,7 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  auto the_bag = clip.get_state<std::vector<std::string>>(state_name);
+  auto the_bag = clip.get_state<std::vector<int>>(state_name);
   clip.set_state(state_name, the_bag);
 
   std::stringstream sstr;

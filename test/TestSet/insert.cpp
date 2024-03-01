@@ -6,17 +6,17 @@
 #include "clippy/clippy.hpp"
 #include <boost/json.hpp>
 #include <iostream>
+#include <set>
 
 namespace boostjsn = boost::json;
 
-static const std::string class_name = "ClippyBag";
 static const std::string method_name = "insert";
 static const std::string state_name = "INTERNAL";
 
 int main(int argc, char **argv) {
-  clippy::clippy clip{method_name, "Inserts a string into a ClippyBag"};
-  clip.add_required<std::string>("item", "Item to insert");
-  clip.add_required_state<std::vector<std::string>>(state_name,
+  clippy::clippy clip{method_name, "Inserts a string into a TestSet"};
+  clip.add_required<int>("item", "Item to insert");
+  clip.add_required_state<std::set<int>>(state_name,
                                                     "Internal container");
   clip.returns_self();
 
@@ -25,10 +25,10 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  auto item = clip.get<std::string>("item");
-  auto the_bag = clip.get_state<std::vector<std::string>>(state_name);
-  the_bag.push_back(item);
-  clip.set_state(state_name, the_bag);
+  auto item = clip.get<int>("item");
+  auto the_set = clip.get_state<std::set<int>>(state_name);
+  the_set.insert(item);
+  clip.set_state(state_name, the_set);
   clip.return_self();
   return 0;
 }
