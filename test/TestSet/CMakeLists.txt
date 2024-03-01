@@ -4,7 +4,6 @@ add_test(TestSet insert)
 add_test(TestSet remove)
 add_test(TestSet remove_if)
 add_test(TestSet size)
-add_test(TestSet add_selector)
 add_custom_command(
         TARGET TestSet_size POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy

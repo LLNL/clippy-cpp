@@ -10,34 +10,43 @@
 
 namespace boostjsn = boost::json;
 
-static const std::string method_name = "add_selector";
+static const std::string method_name = "drop";
 static const std::string state_name = "INTERNAL";
 
 int main(int argc, char **argv) {
-  clippy::clippy clip{method_name, "Returns the size of the bag"};
-  clip.add_required<boostjsn::object>("selector", "Base selector");
-    // no object-state requirements in constructor
+  clippy::clippy clip{method_name, "Drops a subselector"};
+  clip.add_required<boostjsn::object>("selector", "Parent Selector");
+  clip.add_required_state<std::map<std::string, std::string>>("selector_state",
+                                                    "Internal container");
+
   if (clip.parse(argc, argv)) {
     return 0;
   }
 
+  std::map<std::string, std::string> sstate;
+  if(clip.has_state("selector_state")) {
+    sstate = clip.get_state<std::map<std::string, std::string>>("selector_state");
+  } 
+  
   auto jo = clip.get<boostjsn::object>("selector");
 
-  std::string name;
+  std::string parentname;
   try {
     if(jo["expression_type"].as_string() != std::string("jsonlogic")) {
       std::cerr << " NOT A THINGY " << std::endl;
       exit(-1);
     }
-    name = jo["rule"].as_object()["var"].as_string().c_str();
+    parentname = jo["rule"].as_object()["var"].as_string().c_str();
   } catch (...) {
     std::cerr << "!! ERROR !!" << std::endl;
     exit(-1);
   }
 
-  std::cerr << name << std::endl;
+  sstate.erase(parentname);
 
-  auto the_bag = clip.get_state<std::vector<std::string>>(state_name);
+  clip.set_state("selector_state", sstate);
+  clip.update_selectors(sstate);
+  clip.return_self();
 
   return 0;
 }
