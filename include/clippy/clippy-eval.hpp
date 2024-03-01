@@ -9,6 +9,7 @@
 #include <regex>
 #include <unordered_map>
 #include <numeric>
+#include <iostream>
 
 #include <boost/json.hpp>
 

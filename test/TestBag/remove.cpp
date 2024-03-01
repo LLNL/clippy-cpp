@@ -11,17 +11,15 @@
 
 namespace boostjsn = boost::json;
 
-static const std::string class_name = "ClippyBag";
 static const std::string method_name = "remove";
 static const std::string state_name = "INTERNAL";
 
 int main(int argc, char **argv) {
 
-  clippy::clippy clip{method_name, "Removes a string from a ClippyBag"};
-  clip.member_of("ClippyBag", "Example bag container");
-  clip.add_required<std::string>("item", "Item to remove");
+  clippy::clippy clip{method_name, "Removes a string from a TestBag"};
+  clip.add_required<int>("item", "Item to remove");
   clip.add_optional<bool>("all", "Remove all?", false);
-  clip.add_required_state<std::list<std::string>>(state_name,
+  clip.add_required_state<std::list<int>>(state_name,
                                                   "Internal container");
   clip.returns_self();
   // no object-state requirements in constructor
@@ -29,9 +27,9 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  auto item = clip.get<std::string>("item");
+  auto item = clip.get<int>("item");
   bool all = clip.get<bool>("all");
-  auto the_bag = clip.get_state<std::list<std::string>>(state_name);
+  auto the_bag = clip.get_state<std::list<int>>(state_name);
   if (all) {
     the_bag.remove(item);
   } else {

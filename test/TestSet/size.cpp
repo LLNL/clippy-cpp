@@ -5,26 +5,27 @@
 
 #include "clippy/clippy.hpp"
 #include <boost/json.hpp>
+#include <cassert>
 #include <iostream>
+#include <set>
 
 namespace boostjsn = boost::json;
 
-static const std::string class_name = "ClippyBag";
-static const std::string method_name = "__init__";
+static const std::string method_name = "size";
 static const std::string state_name = "INTERNAL";
 
 int main(int argc, char **argv) {
-  clippy::clippy clip{method_name, "Initializes a ClippyBag of strings"};
+  clippy::clippy clip{method_name, "Returns the size of the set"};
 
-  clip.member_of("ClippyBag", "Example bag container");
+  clip.returns<size_t>("Size of set.");
 
   // no object-state requirements in constructor
   if (clip.parse(argc, argv)) {
     return 0;
   }
 
-  std::vector<std::string> the_bag;
-  clip.set_state(state_name, the_bag);
+  auto the_set = clip.get_state<std::set<int>>(state_name);
 
+  clip.to_return<size_t>(the_set.size());
   return 0;
 }

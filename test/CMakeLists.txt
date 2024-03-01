@@ -6,14 +6,17 @@
 #
 # This function adds a test.
 #
-function ( add_test test_name )
-  set(example_source "${test_name}.cpp")
-  set(example_exe "${test_name}")
-  add_executable(${example_exe} ${example_source})
-  target_include_directories(${example_exe} PRIVATE ${Boost_INCLUDE_DIRS})
+function ( add_test class_name method_name )
+  set(source "${method_name}.cpp")
+  set(target "${class_name}_${method_name}")
+  add_executable(${target} ${source})
+  target_include_directories(${target} PRIVATE ${Boost_INCLUDE_DIRS})
   include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+  set_target_properties(${target} PROPERTIES OUTPUT_NAME "${method_name}" )
 endfunction()
 
 
-add_subdirectory(ClippyFunctions)
-add_subdirectory(ClippyBag)
+
+add_subdirectory(TestBag)
+add_subdirectory(TestSet)
+# add_subdirectory(TestFunctions)
