@@ -5,15 +5,14 @@
 
 #pragma once
 
+#include <clippy/version.hpp>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <map>
-#include <set>
 #include <sstream>
 #include <string>
 #include <utility>
-#include <clippy/version.hpp>
 
 #include "clippy-object.hpp"
 
@@ -49,10 +48,12 @@ template <class T, class Alloc> struct is_container<std::vector<T, Alloc>> {
 };
 
 boost::json::value asContainer(boost::json::value val, bool requiresContainer) {
-  if (!requiresContainer)
+  if (!requiresContainer) {
     return val;
-  if (val.is_array())
+  }
+  if (val.is_array()) {
     return val;
+  }
 
   boost::json::array res;
 
@@ -60,7 +61,7 @@ boost::json::value asContainer(boost::json::value val, bool requiresContainer) {
   return res;
 }
 
-std::string clippyLogFile{"clippy.log"};
+const std::string clippyLogFile{"clippy.log"};
 
 #if WITH_YGM
 std::string userInputString;
@@ -98,7 +99,8 @@ public:
 
   ~clippy() {
     const bool requiresResponse =
-        !(m_json_return.is_null() && m_json_state.empty() && m_json_overwrite_args.empty() && m_json_selectors.is_null());
+        !(m_json_return.is_null() && m_json_state.empty() &&
+          m_json_overwrite_args.empty() && m_json_selectors.is_null());
 
     if (requiresResponse) {
       int rank = 0;
@@ -122,13 +124,15 @@ public:
   }
 
   template <class M> void log(std::ofstream &logfile, const M &msg) {
-    if (LOG_JSON)
+    if (LOG_JSON) {
       logfile << msg << std::flush;
+    }
   }
 
   template <class M> void log(const M &msg) {
-    if (!LOG_JSON)
+    if (!LOG_JSON) {
       return;
+    }
 
     std::ofstream logfile{clippyLogFile, std::ofstream::app};
     log(logfile, msg);
@@ -159,7 +163,8 @@ public:
         boost::json::value_from(default_val);
   }
 
-  void update_selectors(const std::map<std::string, std::string>& map_selectors) {
+  void
+  update_selectors(const std::map<std::string, std::string> &map_selectors) {
     m_json_selectors = boost::json::value_from(map_selectors);
   }
 
@@ -172,9 +177,7 @@ public:
     m_returns_self = true;
   }
 
-  void return_self() {
-   m_returns_self = true;
-  }
+  void return_self() { m_returns_self = true; }
 
   template <typename T> void to_return(const T &value) {
     // if (detail::get_type_name<T>() !=
@@ -184,7 +187,6 @@ public:
     m_json_return = boost::json::value_from(value);
   }
 
-
   void to_return(::clippy::object value) {
     m_json_return = std::move(value).json();
   }
@@ -193,7 +195,7 @@ public:
     m_json_return = std::move(value).json();
   }
 
-  bool parse(int argc, char **argv) {
+  bool parse(int argc, std::vector<std::string> argv) {
     const char *JSON_FLAG = "--clippy-help";
     const char *DRYRUN_FLAG = "--clippy-validate";
     if (argc == 2 && std::string(argv[1]) == JSON_FLAG) {
@@ -217,12 +219,7 @@ public:
     }
     validate_json_input();
 
-    if (argc == 2 && std::string(argv[1]) == DRYRUN_FLAG) {
-      return true;
-    }
-
-    // Good to go for reals
-    return false;
+    return (argc == 2 && std::string(argv[1]) == DRYRUN_FLAG);
   }
 
 #if WITH_YGM
@@ -259,12 +256,7 @@ public:
     }
     validate_json_input();
 
-    if (argc == 2 && std::string(argv[1]) == DRYRUN_FLAG) {
-      return true;
-    }
-
-    // Good to go for reals
-    return false;
+    return (argc == 2 && std::string(argv[1]) == DRYRUN_FLAG);
   }
 #endif /* WITH_YGM */
 
@@ -274,12 +266,12 @@ public:
     if (has_argument(name)) { // if the argument exists
       return boost::json::value_to<T>(
           asContainer(get_value(m_json_input, name), requires_container));
-    } else { // it's an optional
-      // std::cout << "optional argument found: " + name << std::endl;
-      return boost::json::value_to<T>(
-          asContainer(get_value(m_json_config, "args", name, "default_val"),
-                      requires_container));
     }
+    // it's an optional
+    // std::cout << "optional argument found: " + name << std::endl;
+    return boost::json::value_to<T>(
+        asContainer(get_value(m_json_config, "args", name, "default_val"),
+                    requires_container));
   }
 
   bool has_state(const std::string &name) const {
@@ -294,10 +286,12 @@ public:
     // if no state exists (= empty), then copy it from m_json_input if it exists
     // there;
     //   otherwise just start with an empty state.
-    if (m_json_state.empty())
+    if (m_json_state.empty()) {
       if (boost::json::value *stateValue =
-              m_json_input.get_object().if_contains(state_key))
+              m_json_input.get_object().if_contains(state_key)) {
         m_json_state = stateValue->as_object();
+      }
+    }
 
     m_json_state[name] = boost::json::value_from(val);
   }
@@ -323,22 +317,26 @@ private:
     boost::json::object json_response;
 
     // incl. the response if it has been set
-    if(m_returns_self) {
+    if (m_returns_self) {
       json_response["returns_self"] = true;
-    } else if (!m_json_return.is_null())
+    } else if (!m_json_return.is_null()) {
       json_response[returns_key] = m_json_return;
+    }
 
     // only communicate the state if it has been explicitly set.
     //   no state -> no state update
-    if (!m_json_state.empty())
+    if (!m_json_state.empty()) {
       json_response[state_key] = m_json_state;
+    }
 
-    if(!m_json_selectors.is_null())
+    if (!m_json_selectors.is_null()) {
       json_response[selectors_key] = m_json_selectors;
+    }
 
     // only communicate the pass by reference arguments if explicitly set
-    if (!m_json_overwrite_args.empty())
+    if (!m_json_overwrite_args.empty()) {
       json_response["references"] = m_json_overwrite_args;
+    }
 
     // write the response
     os << json_response << std::endl;
@@ -352,7 +350,7 @@ private:
   }
 
   template <typename T> void add_optional_validator(const std::string &name) {
-    if (m_input_validators.count(name) > 0) {
+    if (m_input_validators.contains(name)) {
       std::stringstream ss;
       ss << "CLIPPy ERROR:   Cannot have duplicate argument names: " << name
          << "\n";
@@ -377,7 +375,7 @@ private:
   }
 
   template <typename T> void add_required_validator(const std::string &name) {
-    if (m_input_validators.count(name) > 0) {
+    if (m_input_validators.contains(name)) {
       throw std::runtime_error("Clippy:: Cannot have duplicate argument names");
     }
     m_input_validators[name] = [name](const boost::json::value &j) {
@@ -408,7 +406,7 @@ private:
     key += "::";
     key += name;
 
-    if (m_input_validators.count(key) > 0) {
+    if (m_input_validators.contains(key)) {
       throw std::runtime_error("Clippy:: Cannot have duplicate state names");
     }
 
@@ -430,14 +428,18 @@ private:
     m_input_validators[key] = state_validator;
   }
 
-  static constexpr bool has_value(const boost::json::value &) { return true; }
+  static constexpr bool has_value(const boost::json::value & /*unused*/) {
+    return true;
+  }
 
   template <typename... argts>
   static bool has_value(const boost::json::value &value, const std::string &key,
                         const argts &...inner_keys) {
-    if (const boost::json::object *obj = value.if_object())
-      if (const auto pos = obj->find(key); pos != obj->end())
+    if (const boost::json::object *obj = value.if_object()) {
+      if (const auto *const pos = obj->find(key); pos != obj->end()) {
         return has_value(pos->value(), inner_keys...);
+      }
+    }
 
     return false;
   }
@@ -478,7 +480,7 @@ private:
   boost::json::value m_json_selectors;
   boost::json::object m_json_state;
   boost::json::object m_json_overwrite_args;
-  bool m_returns_self=false;
+  bool m_returns_self = false;
 
   boost::json::object *m_json_input_state = nullptr;
   size_t m_next_position = 0;
@@ -497,7 +499,7 @@ public:
 } // namespace clippy
 
 namespace boost::json {
-void tag_invoke(boost::json::value_from_tag, boost::json::value &jv,
+void tag_invoke(boost::json::value_from_tag /*unused*/, boost::json::value &jv,
                 const std::vector<std::pair<int, int>> &value) {
   auto &outer_array = jv.emplace_array();
   outer_array.resize(value.size());
@@ -510,12 +512,12 @@ void tag_invoke(boost::json::value_from_tag, boost::json::value &jv,
   }
 }
 
-std::vector<std::pair<int, int>>
-tag_invoke(boost::json::value_to_tag<std::vector<std::pair<int, int>>>,
-           const boost::json::value &jv) {
+std::vector<std::pair<int, int>> tag_invoke(
+    boost::json::value_to_tag<std::vector<std::pair<int, int>>> /*unused*/,
+    const boost::json::value &jv) {
   std::vector<std::pair<int, int>> value;
 
-  auto &outer_array = jv.get_array();
+  const auto &outer_array = jv.get_array();
   for (const auto &inner_value : outer_array) {
     const auto &inner_array = inner_value.get_array();
     value.emplace_back(
@@ -525,7 +527,7 @@ tag_invoke(boost::json::value_to_tag<std::vector<std::pair<int, int>>>,
   return value;
 }
 
-void tag_invoke(boost::json::value_from_tag, boost::json::value &jv,
+void tag_invoke(boost::json::value_from_tag /*unused*/, boost::json::value &jv,
                 const std::vector<std::pair<std::string, std::string>> &value) {
   auto &outer_array = jv.emplace_array();
   outer_array.resize(value.size());
@@ -538,12 +540,13 @@ void tag_invoke(boost::json::value_from_tag, boost::json::value &jv,
   }
 }
 
-std::vector<std::pair<std::string, std::string>> tag_invoke(
-    boost::json::value_to_tag<std::vector<std::pair<std::string, std::string>>>,
-    const boost::json::value &jv) {
+std::vector<std::pair<std::string, std::string>>
+tag_invoke(boost::json::value_to_tag<
+               std::vector<std::pair<std::string, std::string>>> /*unused*/,
+           const boost::json::value &jv) {
   std::vector<std::pair<std::string, std::string>> value;
 
-  auto &outer_array = jv.get_array();
+  const auto &outer_array = jv.get_array();
   for (const auto &inner_value : outer_array) {
     const auto &inner_array = inner_value.get_array();
     value.emplace_back(
