@@ -203,9 +203,7 @@ class clippy {
           logfile << "<-hlp- " << m_json_config << std::endl;
       }
 
-      if(world.rank0()) {
-        std::cout << m_json_config;
-      }
+      std::cout << m_json_config;
       return true;
     }
     std::string buf;
@@ -239,7 +237,9 @@ class clippy {
           logfile << "<-hlp- " << m_json_config << std::endl;
       }
 
-      std::cout << m_json_config;
+      if(world.rank0()) {
+        std::cout << m_json_config;
+      }
       return true;
     }
 
