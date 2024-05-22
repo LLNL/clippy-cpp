@@ -81,7 +81,7 @@ find_package(Threads REQUIRED)
 
 #
 # Boost
-find_package(Boost 1.75 REQUIRED COMPONENTS)
+find_package(Boost 1.78 REQUIRED COMPONENTS)
 
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
