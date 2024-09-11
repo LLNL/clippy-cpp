@@ -67,7 +67,7 @@ if (NOT Metall_FOUND)
     set(METALL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/metall-install)
 		FetchContent_Declare(Metall
         GIT_REPOSITORY https://github.com/LLNL/metall.git
-        GIT_TAG master
+        GIT_TAG v0.26
 				)
 #        SOURCE_DIR ${METALL_SOURCE_DIR}
 #        BINARY_DIR ${METALL_BUILD_DIR}
