@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.14)
 set(ALLOW_DUPLICATE_CUSTOM_TARGETS TRUE)
 
 project(CLIPPy
-    VERSION 0.1
+    VERSION 0.2
     DESCRIPTION "Command Line Interface Plus Python"
     LANGUAGES CXX)
 
