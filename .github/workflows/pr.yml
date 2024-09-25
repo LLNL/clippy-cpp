@@ -48,7 +48,7 @@ jobs:
           # git clone https://github.com/LLNL/clippy-cpp --branch $GITHUB_HEAD_REF $TMPDIR
           
           mkdir -p build
-          cd build && cmake -DBOOST_ROOT=$BOOST_ROOT .. && make 
+          cd build && cmake -DBOOST_ROOT=$BOOST_ROOT .. && make && cd ..
           ls -l build/test
           BACKEND=$PWD/build/test
           echo "BACKEND=$BACKEND" >> $GITHUB_ENV
