@@ -4,3 +4,4 @@
 CMakeDoxyfile.in
 CMakeDoxygenDefaults.cmake
 DartConfiguration.tcl
+__pycache__
