@@ -1,31 +1,31 @@
 # CLIPPy - Command Line Interface Plus Python
- ````
- ╭────────────────────────────────────╮
- │ It looks like you want to use HPC. │ 
- │ Would you like help with that?     │
- ╰────────────────────────────────────╯
+
+```
+╭────────────────────────────────────╮
+│ It looks like you want to use HPC. │ 
+│ Would you like help with that?     │
+╰────────────────────────────────────╯
+ ╲
   ╲
-   ╲
-    ╭──╮  
-    ⊙ ⊙│╭
-    ││ ││
-    │╰─╯│
-    ╰───╯
-````
+   ╭──╮  
+   ⊙ ⊙│╭
+   ││ ││
+   │╰─╯│
+   ╰───╯
+```
 
 ## Overview
 
-Clippy (CLI + PYthon) is a Python language interface to HPC resources. Precompiled binaries
-that execute on HPC systems are exposed as methods to a dynamically-created `Clippy` Python
-object, where they present a familiar interface to researchers, data scientists, and others.
-Clippy allows these users to interact with HPC resources in an easy, straightforward
-environment – at the REPL, for example, or within a notebook – without the need to learn
-complex HPC behavior and arcane job submission commands.
+Clippy (CLI + PYthon) is a Python language interface to HPC resources. Precompiled binaries that
+execute on HPC systems are exposed as methods to a dynamically-created `Clippy` Python object, where
+they present a familiar interface to researchers, data scientists, and others. Clippy allows these
+users to interact with HPC resources in an easy, straightforward environment – at the REPL, for
+example, or within a notebook – without the need to learn complex HPC behavior and arcane job
+submission commands.
 
 This repository contains the C++ libraries necessary to interface with the Clippy python interface.
 
-
-## Building C++ Examples  on LC
+## Building C++ Examples on LC
 
 ```console
 $ . /usr/workspace/llamag/spack/share/spack/setup-env.sh
@@ -35,10 +35,11 @@ $ mkdir build
 $ cd build
 $ cmake ../
 $ make
-$ cd ../.. #back to root project directory 
+$ cd ../.. #back to root project directory
 ```
 
 ## Running Current Examples
+
 ```python
 $ ipython3-3.8.2
 
@@ -121,17 +122,18 @@ ClippyBackendError: terminate called after throwing an instance of 'std::runtime
 ```
 
 ## Authors
+
 - Seth Bromberger (seth at llnl dot gov)
 - Roger Pearce (rpearce at llnl dot gov)
 
-
 ## License
+
 CLIPPy is distributed under the MIT license.
 
-See [LICENSE-MIT](LICENSE-MIT), [NOTICE](NOTICE), and [COPYRIGHT](COPYRIGHT) for
-details.
+See [LICENSE-MIT](LICENSE-MIT), [NOTICE](NOTICE), and [COPYRIGHT](COPYRIGHT) for details.
 
 SPDX-License-Identifier: MIT
 
 ## Release
+
 LLNL-CODE-818157
