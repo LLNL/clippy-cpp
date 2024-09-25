@@ -1,3 +1,6 @@
 /.cache
-/build*
+/**/build
 /.idea/
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
+DartConfiguration.tcl
