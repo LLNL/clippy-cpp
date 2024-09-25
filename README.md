@@ -23,7 +23,8 @@ users to interact with HPC resources in an easy, straightforward environment –
 example, or within a notebook – without the need to learn complex HPC behavior and arcane job
 submission commands.
 
-This repository contains the C++ libraries necessary to interface with the Clippy python interface.
+This repository contains the C++ libraries necessary to interface with the
+[Clippy python interface](https://github.com/LLNL/clippy).
 
 ## Building C++ Examples on LC
 
