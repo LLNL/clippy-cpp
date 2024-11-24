@@ -5,7 +5,6 @@
 
 # Works with 3.11 and tested through 3.15 (not tested yet)
 cmake_minimum_required(VERSION 3.14)
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(ALLOW_DUPLICATE_CUSTOM_TARGETS TRUE)
 
 project(CLIPPy
@@ -70,21 +69,19 @@ endif()
 # Boost
 # find_package(Boost 1.83 REQUIRED COMPONENTS)
 
-#
-# Boost
-include(setup_boost)
-prepare_fetchcontent_boost()
-set(FETCHCONTENT_QUIET FALSE)
+include(FetchContent)
+
+# Fetch Boost
 FetchContent_Declare(
-        Boost
-        GIT_REPOSITORY https://github.com/boostorg/boost.git
-        GIT_TAG boost-1.83.0
-        GIT_SUBMODULES ${BOOST_REQD_SUBMODULES}
-        GIT_PROGRESS TRUE
-        CONFIGURE_COMMAND ""  # tell CMake it's not a cmake project
+    boost
+    GIT_REPOSITORY https://github.com/boostorg/boost.git
+    GIT_TAG        boost-1.83.0  # Replace with the desired Boost version
+    GIT_PROGRESS TRUE
 )
-FetchContent_MakeAvailable(Boost)
-get_boost_include_dirs()
+FetchContent_MakeAvailable(boost)
+
+# Ensure submodules for Boost.JSON are initialized
+add_subdirectory(${boost_SOURCE_DIR}/libs/json ${boost_BINARY_DIR}/boost-json)
 
 
 ### Require out-of-source builds
