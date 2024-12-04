@@ -20,8 +20,9 @@ class locator {
 
   locator(index loc) : loc(loc) {};
 
-public:
-  template <typename K, typename... Vs> friend class mvmap;
+ public:
+  template <typename K, typename... Vs>
+  friend class mvmap;
   friend void tag_invoke(boost::json::value_from_tag /*unused*/,
                          boost::json::value &v, locator l);
   friend locator tag_invoke(boost::json::value_to_tag<locator> /*unused*/,
@@ -38,8 +39,10 @@ locator tag_invoke(boost::json::value_to_tag<locator> /*unused*/,
                    const boost::json::value &v) {
   return boost::json::value_to<index>(v);
 }
-template <typename K, typename... Vs> class mvmap {
-  template <typename T> using series = std::map<index, T>;
+template <typename K, typename... Vs>
+class mvmap {
+  template <typename T>
+  using series = std::map<index, T>;
   using key_to_idx = std::map<K, index>;
   using idx_to_key = std::map<index, K>;
   using variants = std::variant<Vs...>;
@@ -51,14 +54,17 @@ template <typename K, typename... Vs> class mvmap {
   std::map<std::string, std::variant<series<Vs>...>> data;
   std::map<std::string, std::string> series_desc;
 
-public:
+ public:
   // A series_proxy is a reference to a series in an mvmap.
-  template <typename V> class series_proxy {
+  template <typename V>
+  class series_proxy {
     std::string id;
     std::string_view desc;
     key_to_idx &kti_r;
     idx_to_key &itk_r;
     series<V> &series_r;
+
+    using series_type = V;
 
     // returns true if there is an index assigned to a given key
     bool has_idx(K k) { return kti_r.count(k) > 0; }
@@ -76,13 +82,16 @@ public:
       return kti_r[k];
     }
 
-  public:
+   public:
     series_proxy(std::string id, series<V> &ser, mvmap<K, Vs...> &m)
         : id(std::move(id)), kti_r(m.kti), itk_r(m.itk), series_r(ser) {}
 
     series_proxy(std::string id, const std::string &desc, series<V> &ser,
                  mvmap<K, Vs...> &m)
-        : id(std::move(id)), desc(desc), kti_r(m.kti), itk_r(m.itk),
+        : id(std::move(id)),
+          desc(desc),
+          kti_r(m.kti),
+          itk_r(m.itk),
           series_r(ser) {}
 
     V &operator[](K k) { return series_r[get_idx(k)]; }
@@ -123,20 +132,23 @@ public:
     locator get_loc(K k) { return locator(get_idx(k)); }
 
     // F takes (K key, locator, V value)
-    template <typename F> void for_all(F f) {
+    template <typename F>
+    void for_all(F f) {
       for (auto el : series_r) {
         f(itk_r[el.first], locator(el.first), el.second);
       }
     };
 
-    template <typename F> void for_all(F f) const {
+    template <typename F>
+    void for_all(F f) const {
       for (auto el : series_r) {
         f(itk_r[el.first], locator(el.first), el.second);
       }
     };
 
     // F takes (K key, locator, V value)
-    template <typename F> void remove_if(F f) {
+    template <typename F>
+    void remove_if(F f) {
       auto indices_to_delete = std::vector<index>{};
       for (auto el : series_r) {
         if (f(itk_r[el.first], locator(el.first), el.second)) {
@@ -167,14 +179,14 @@ public:
 
     // this returns the key for a given locator in a series, or nullopt if the
     // locator is invalid.
-    std::optional<std::reference_wrapper<const K>>
-    get_key(const locator &l) const {
+    std::optional<std::reference_wrapper<const K>> get_key(
+        const locator &l) const {
       if (!has_idx(l.loc)) {
         return {};
       }
       return itk_r[l.loc];
     }
-  }; // end of series
+  };  // end of series
   /////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////////
   mvmap(const idx_to_key &itk, const key_to_idx &kti,
@@ -189,9 +201,9 @@ public:
          {"data", boost::json::value_from(m.data)}};
   }
 
-  friend mvmap<K, Vs...>
-  tag_invoke(boost::json::value_to_tag<mvmap<K, Vs...>> /*unused*/,
-             const boost::json::value &v) {
+  friend mvmap<K, Vs...> tag_invoke(
+      boost::json::value_to_tag<mvmap<K, Vs...>> /*unused*/,
+      const boost::json::value &v) {
     const auto &obj = v.as_object();
     using index = uint64_t;
     // template <typename T> using series = std::map<index, T>;
@@ -244,6 +256,18 @@ public:
     return series_proxy(name, desc, std::get<series<V>>(data[name]), *this);
   }
 
+  // copies an existing column (series) to a new column and returns true. If the
+  // new column already exists, or if the existing column doesn't, return false.
+  bool copy_series(const std::string &from, const std::string &to,
+                   const std::string &desc = "") {
+    if (has_series(to) || !has_series(from)) {
+      return false;
+    }
+    data[to] = data[from];
+    series_desc[to] = desc;
+    return true;
+  }
+
   template <typename V>
   std::optional<series_proxy<V>> get_series(const std::string &name) {
     if (!has_series<V>(name)) {
@@ -253,12 +277,24 @@ public:
     return series_proxy<V>(name, std::get<series<V>>(data[name]), *this);
   }
 
+  std::optional<series_proxy<variants>> get_variant_series(
+      const std::string &name) {
+    if (!has_series(name)) {
+      return std::nullopt;
+    }
+    return series_proxy<variants>(name, data[name], *this);
+  }
+
   void drop_series(const std::string &name) {
     if (!has_series(name)) {
       return;
     }
     data.erase(name);
     series_desc.erase(name);
+  }
+
+  mvmap::variants get_as_variant(const std::string &name, const locator &loc) {
+    return data[name][loc.loc];
   }
 
   // returns a series_proxy for the given string. If the series doesn't exist,
@@ -279,13 +315,15 @@ public:
 
   // F is a function that takes a key and a locator.
   // Users will need to close over series_proxies that they want to use.
-  template <typename F> void for_all(F f) {
+  template <typename F>
+  void for_all(F f) {
     for (auto &idx : kti) {
       f(idx.first, locator(idx.second));
     }
   }
 
-  template <typename F> void remove_if(F f) {
+  template <typename F>
+  void remove_if(F f) {
     std::vector<index> indices_to_delete;
     for (auto &idx : kti) {
       if (f(idx.first, locator(idx.second))) {
@@ -302,4 +340,4 @@ public:
     }
   }
 };
-}; // namespace mvmap
+};  // namespace mvmap

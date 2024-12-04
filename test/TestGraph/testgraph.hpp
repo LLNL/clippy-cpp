@@ -1,7 +1,4 @@
 #pragma once
-#include "boost/json.hpp"
-#include "mvmap.hpp"
-#include "selector.hpp"
 #include <cstdint>
 #include <map>
 #include <ranges>
@@ -9,28 +6,35 @@
 #include <utility>
 #include <vector>
 
+#include "boost/json.hpp"
+#include "mvmap.hpp"
+#include "selector.hpp"
+
 namespace testgraph {
 // map of (src, dst) : weight
 using node_t = std::string;
 using edge_t = std::pair<node_t, node_t>;
 
-template <typename T> using sparsevec = std::map<uint64_t, T>;
+template <typename T>
+using sparsevec = std::map<uint64_t, T>;
 
+// using variants = std::variant<bool, double, int64_t, std::string>;
 class testgraph {
-
   using edge_mvmap = mvmap::mvmap<edge_t, bool, double, int64_t, std::string>;
   using node_mvmap = mvmap::mvmap<node_t, bool, double, int64_t, std::string>;
-  template <typename T> using edge_series_proxy = edge_mvmap::series_proxy<T>;
-  template <typename T> using node_series_proxy = node_mvmap::series_proxy<T>;
+  template <typename T>
+  using edge_series_proxy = edge_mvmap::series_proxy<T>;
+  template <typename T>
+  using node_series_proxy = node_mvmap::series_proxy<T>;
   node_mvmap node_table;
   edge_mvmap edge_table;
 
-public:
-  static bool is_edge_selector(const std::string &name) {
+ public:
+  static bool is_edge_selector(const std::string_view name) {
     return name.starts_with("edge.");
   }
 
-  static bool is_node_selector(const std::string &name) {
+  static bool is_node_selector(const std::string_view name) {
     return name.starts_with("node.");
   }
 
@@ -67,9 +71,16 @@ public:
 
   // this function requires that the "edge." prefix be removed from the name.
   template <typename T>
-  std::optional<edge_series_proxy<T>>
-  add_edge_series(const std::string &name, const std::string &desc = "") {
+  std::optional<edge_series_proxy<T>> add_edge_series(
+      const std::string &name, const std::string &desc = "") {
     return edge_table.add_series<T>(name, desc);
+  }
+
+  template <typename T>
+  std::optional<edge_series_proxy<T>> add_edge_series(
+      const std::string &name, const edge_series_proxy<T> &from,
+      const std::string &desc = "") {
+    return edge_table.add_series<T>(name, from, desc);
   }
 
   void drop_edge_series(const std::string &name) {
@@ -81,15 +92,32 @@ public:
   }
   // this function requires that the "node." prefix be removed from the name.
   template <typename T>
-  std::optional<node_series_proxy<T>>
-  add_node_series(const std::string &name, const std::string &desc = "") {
+  std::optional<node_series_proxy<T>> add_node_series(
+      const std::string &name, const std::string &desc = "") {
     return node_table.add_series<T>(name, desc);
   }
 
   template <typename T>
+  std::optional<edge_series_proxy<T>> add_node_series(
+      const std::string &name, const node_series_proxy<T> &from,
+      const std::string &desc = "") {
+    return node_table.add_series<T>(name, from, desc);
+  }
+  template <typename T>
   std::optional<edge_series_proxy<T>> get_edge_series(const std::string &name) {
     return edge_table.get_series<T>(name);
   }
+
+  bool copy_edge_series(const std::string &from, const std::string &to,
+                        const std::string &desc) {
+    return edge_table.copy_series(from, to, desc);
+  }
+
+  bool copy_node_series(const std::string &from, const std::string &to,
+                        const std::string &desc) {
+    return node_table.copy_series(from, to, desc);
+  }
+
   template <typename T>
   std::optional<node_series_proxy<T>> get_node_series(const std::string &name) {
     return node_table.get_series<T>(name);
@@ -121,8 +149,14 @@ public:
   [[nodiscard]] size_t nv() const { return node_table.size(); }
   [[nodiscard]] size_t ne() const { return edge_table.size(); }
 
-  template <typename F> void for_all_edges(F f) { edge_table.for_all(f); }
-  template <typename F> void for_all_nodes(F f) { node_table.for_all(f); }
+  template <typename F>
+  void for_all_edges(F f) {
+    edge_table.for_all(f);
+  }
+  template <typename F>
+  void for_all_nodes(F f) {
+    node_table.for_all(f);
+  }
 
   [[nodiscard]] std::vector<edge_t> edges() const {
     auto kv = edge_table.keys();
@@ -181,6 +215,6 @@ public:
     return out_neighbors(node).size();
   }
 
-}; // class testgraph
+};  // class testgraph
 
-} // namespace testgraph
+}  // namespace testgraph
