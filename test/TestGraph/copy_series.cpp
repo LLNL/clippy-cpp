@@ -20,8 +20,7 @@ static const std::string sel_state_name = "selectors";
 int main(int argc, char **argv) {
   clippy::clippy clip{method_name, "Copies a subselector to a new subselector"};
   clip.add_required<boostjsn::object>("from_sel", "Source Selector");
-  clip.add_required<std::string>("to_sel", "Name of new selector");
-  clip.add_optional<std::string>("desc", "Description of new selector", "");
+  clip.add_required<boostjsn::object>("to_sel", "Target Selector");
 
   clip.add_required_state<std::map<std::string, std::string>>(
       sel_state_name, "Internal container for pending selectors");
@@ -33,36 +32,44 @@ int main(int argc, char **argv) {
   }
 
   auto from_selector_obj = clip.get<boostjsn::object>("from_sel");
-  auto to_selector = clip.get<std::string>("to_sel");
-  auto desc = clip.get<std::string>("desc");
+  auto to_selector_obj = clip.get<boostjsn::object>("to_sel");
 
-  std::string from_selector;
-  try {
-    if (from_selector_obj["expression_type"].as_string() !=
-        std::string("jsonlogic")) {
-      std::cerr << " NOT A THINGY " << std::endl;
-      exit(-1);
-    }
-    from_selector =
-        from_selector_obj["rule"].as_object()["var"].as_string().c_str();
-  } catch (...) {
-    std::cerr << "!! ERROR !!" << std::endl;
+  auto from_selector_opt =
+      testgraph::testgraph::selector_obj_to_string(from_selector_obj);
+
+  if (!from_selector_opt.has_value()) {
+    std::cerr << "!! ERROR: invalid from_selector !!" << std::endl;
+    exit(-1);
+  }
+  auto to_selector_opt =
+      testgraph::testgraph::selector_obj_to_string(to_selector_obj);
+
+  if (!to_selector_opt.has_value()) {
+    std::cerr << "!! ERROR: invalid to_selector !!" << std::endl;
     exit(-1);
   }
 
+  auto from_selector = from_selector_opt.value();
+  auto to_selector = to_selector_opt.value();
   // std::map<std::string, std::string> selectors;
   auto the_graph = clip.get_state<testgraph::testgraph>(graph_state_name);
-  std::string_view fs_view = from_selector;
-  std::string_view top_level = fs_view.substr(5);
 
   bool edge_sel = false;
-  if (testgraph::testgraph::is_edge_selector(top_level)) {
+  if (testgraph::testgraph::is_edge_selector(from_selector)) {
     edge_sel = true;
-  } else if (!testgraph::testgraph::is_node_selector(top_level)) {
+  } else if (!testgraph::testgraph::is_node_selector(from_selector)) {
     std::cerr
         << "!! ERROR: Parent must be either \"edge\" or \"node\" (received "
-        << top_level << ") !!";
+        << from_selector << ") !!";
     exit(-1);
+  }
+
+  bool to_sel_has_prefix =
+      testgraph::testgraph::is_edge_selector(to_selector) ||
+      testgraph::testgraph::is_node_selector(to_selector);
+  if (to_sel_has_prefix) {
+    std::cerr << "Warning: stripping prefix from to_selector" << std::endl;
+    to_selector = to_selector.substr(5);
   }
   if (edge_sel && the_graph.has_edge_series(to_selector)) {
     std::cerr << "!! ERROR: Selector name " << to_selector
@@ -82,20 +89,24 @@ int main(int argc, char **argv) {
       std::cerr << "Warning: Using unmanifested selector." << std::endl;
       selectors.erase(to_selector);
     }
+    from_selector = from_selector.substr(5);
     if (edge_sel) {
-      if (!the_graph.copy_edge_series(from_selector, to_selector, desc)) {
+      if (!the_graph.copy_edge_series(from_selector, to_selector)) {
         std::cerr << "!! ERROR: copy failed from " << from_selector << " to "
                   << to_selector << "!!" << std::endl;
         exit(1);
       };
     } else {
-      if (!the_graph.copy_node_series(from_selector, to_selector, desc)) {
+      if (!the_graph.copy_node_series(from_selector, to_selector)) {
         std::cerr << "!! ERROR: copy failed from " << from_selector << " to "
                   << to_selector << "!!" << std::endl;
         exit(1);
       };
     }
   }
+
+  clip.set_state(graph_state_name, the_graph);
+  clip.return_self();
 
   return 0;
 }

@@ -30,16 +30,33 @@ class testgraph {
   edge_mvmap edge_table;
 
  public:
-  static bool is_edge_selector(const std::string_view name) {
+  static inline bool is_edge_selector(const std::string_view name) {
     return name.starts_with("edge.");
   }
 
-  static bool is_node_selector(const std::string_view name) {
+  static inline bool is_node_selector(const std::string_view name) {
     return name.starts_with("node.");
   }
 
-  static bool is_valid_selector(const std::string &name) {
+  static inline bool is_valid_selector(const std::string_view name) {
     return is_edge_selector(name) || is_node_selector(name);
+  }
+
+  static inline std::optional<std::string> selector_obj_to_string(
+      boost::json::object from_selector_obj) {
+    try {
+      if (from_selector_obj["expression_type"].as_string() !=
+          std::string("jsonlogic")) {
+        std::cerr << " NOT A THINGY " << std::endl;
+        return std::nullopt;
+      }
+      std::string from_selector =
+          from_selector_obj["rule"].as_object()["var"].as_string().c_str();
+      return from_selector;
+    } catch (...) {
+      std::cerr << "!! ERROR !!" << std::endl;
+      return std::nullopt;
+    }
   }
 
   friend void tag_invoke(boost::json::value_from_tag /*unused*/,
@@ -108,14 +125,15 @@ class testgraph {
     return edge_table.get_series<T>(name);
   }
 
-  bool copy_edge_series(const std::string &from, const std::string &to,
-                        const std::string &desc) {
-    return edge_table.copy_series(from, to, desc);
+  bool copy_edge_series(const std::string &from, const std::string &to) {
+    return edge_table.copy_series(from, to);
   }
 
-  bool copy_node_series(const std::string &from, const std::string &to,
-                        const std::string &desc) {
-    return node_table.copy_series(from, to, desc);
+  bool copy_node_series(const std::string &from, const std::string &to) {
+    std::cerr << "copy_node_series: from = " << from << ", to = " << to
+              << std::endl;
+
+    return node_table.copy_series(from, to);
   }
 
   template <typename T>

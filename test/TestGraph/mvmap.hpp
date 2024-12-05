@@ -258,13 +258,14 @@ class mvmap {
 
   // copies an existing column (series) to a new column and returns true. If the
   // new column already exists, or if the existing column doesn't, return false.
-  bool copy_series(const std::string &from, const std::string &to,
-                   const std::string &desc = "") {
+  bool copy_series(const std::string &from, const std::string &to) {
     if (has_series(to) || !has_series(from)) {
+      std::cerr << "copy_series failed from " << from << " to " << to
+                << std::endl;
       return false;
     }
+    std::cerr << "copying series from " << from << " to " << to << std::endl;
     data[to] = data[from];
-    series_desc[to] = desc;
     return true;
   }
 
