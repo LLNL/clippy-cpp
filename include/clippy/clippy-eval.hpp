@@ -2454,6 +2454,19 @@ namespace json_logic
     return compareSeq(deref(lv), deref(rv), std::move(pred));
   }
 
+  // convenience template that only returns a type when the types mismatch
+  template <class U, class V, class ResultType>
+  struct MismatchedTypes
+  {
+    using type = ResultType;
+  };
+
+  template <class T, class ResultType>
+  struct MismatchedTypes<T,T,ResultType>
+  {
+    // using type // triggers SFINAE exclusion
+  };
+
 
   //
   // the calc operator implementations
@@ -2466,11 +2479,17 @@ namespace json_logic
   {
     using EqualityOperator::result_type;
 
-    result_type operator()(...) const { return false; } // type mismatch
+    template <class U, class V>
+    auto
+    operator()(const U&, const V&) const
+      -> typename MismatchedTypes<U,V,result_type>::type // type mismatch
+    {
+      return false;
+    }
 
     template <class T>
-    result_type
-    operator()(const T& lhs, const T& rhs) const
+    auto
+    operator()(const T& lhs, const T& rhs) const -> result_type
     {
       return lhs == rhs;
     }
@@ -2481,7 +2500,13 @@ namespace json_logic
   {
     using EqualityOperator::result_type;
 
-    result_type operator()(...) const { return true; } // type mismatch
+    template <class U, class V>
+    auto
+    operator()(const U&, const V&) const
+      -> typename MismatchedTypes<U,V,result_type>::type // type mismatch
+    {
+      return true;
+    }
 
     template <class T>
     result_type
@@ -2496,7 +2521,13 @@ namespace json_logic
   {
     using StrictEqualityOperator::result_type;
 
-    result_type operator()(...) const { return false; } // type mismatch
+    template <class U, class V>
+    auto
+    operator()(const U&, const V&) const
+      -> typename MismatchedTypes<U,V,result_type>::type // type mismatch
+    {
+      return false;
+    }
 
     template <class T>
     result_type
@@ -2511,7 +2542,13 @@ namespace json_logic
   {
     using StrictEqualityOperator::result_type;
 
-    result_type operator()(...) const { return true; } // type mismatch
+    template <class U, class V>
+    auto
+    operator()(const U&, const V&) const
+      -> typename MismatchedTypes<U,V,result_type>::type // type mismatch
+    {
+      return true;
+    }
 
     template <class T>
     result_type
