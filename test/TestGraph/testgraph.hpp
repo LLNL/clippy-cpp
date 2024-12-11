@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "boost/json.hpp"
+#include "clippy/selector.hpp"
 #include "mvmap.hpp"
 #include "selector.hpp"
 
@@ -30,34 +31,34 @@ class testgraph {
   edge_mvmap edge_table;
 
  public:
-  static inline bool is_edge_selector(const std::string_view name) {
-    return name.starts_with("edge.");
+  static inline bool is_edge_selector(const selector &name) {
+    return name.headeq("edge");
   }
 
-  static inline bool is_node_selector(const std::string_view name) {
-    return name.starts_with("node.");
+  static inline bool is_node_selector(const selector &name) {
+    return name.headeq("node");
   }
 
-  static inline bool is_valid_selector(const std::string_view name) {
+  static inline bool is_valid_selector(const std::string &name) {
     return is_edge_selector(name) || is_node_selector(name);
   }
 
-  static inline std::optional<std::string> selector_obj_to_string(
-      boost::json::object from_selector_obj) {
-    try {
-      if (from_selector_obj["expression_type"].as_string() !=
-          std::string("jsonlogic")) {
-        std::cerr << " NOT A THINGY " << std::endl;
-        return std::nullopt;
-      }
-      std::string from_selector =
-          from_selector_obj["rule"].as_object()["var"].as_string().c_str();
-      return from_selector;
-    } catch (...) {
-      std::cerr << "!! ERROR !!" << std::endl;
-      return std::nullopt;
-    }
-  }
+  // static inline std::optional<std::string> selector_obj_to_string(
+  //     boost::json::object from_selector_obj) {
+  //   try {
+  //     if (from_selector_obj["expression_type"].as_string() !=
+  //         std::string("jsonlogic")) {
+  //       std::cerr << " NOT A THINGY " << std::endl;
+  //       return std::nullopt;
+  //     }
+  //     std::string from_selector =
+  //         from_selector_obj["rule"].as_object()["var"].as_string().c_str();
+  //     return from_selector;
+  //   } catch (...) {
+  //     std::cerr << "!! ERROR !!" << std::endl;
+  //     return std::nullopt;
+  //   }
+  // }
 
   friend void tag_invoke(boost::json::value_from_tag /*unused*/,
                          boost::json::value &v, testgraph const &g) {
@@ -197,6 +198,16 @@ class testgraph {
   bool has_edge(const node_t &src, const node_t &dst) {
     return edge_table.contains({src, dst});
   };
+
+  [[nodiscard]] bool has_series(const std::string &&name) const {
+    if (is_node_selector(name)) {
+      return has_node_series(name.substr(5));
+    }
+    if (is_edge_selector(name)) {
+      return has_edge_series(name.substr(5));
+    }
+    return false;
+  }
 
   [[nodiscard]] bool has_node_series(const std::string &name) const {
     return node_table.has_series(name);

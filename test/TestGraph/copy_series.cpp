@@ -54,31 +54,19 @@ int main(int argc, char **argv) {
   // std::map<std::string, std::string> selectors;
   auto the_graph = clip.get_state<testgraph::testgraph>(graph_state_name);
 
-  bool edge_sel = false;
+  bool edge_sel = false;  // if false, then node selector
   if (testgraph::testgraph::is_edge_selector(from_selector)) {
     edge_sel = true;
   } else if (!testgraph::testgraph::is_node_selector(from_selector)) {
-    std::cerr
-        << "!! ERROR: Parent must be either \"edge\" or \"node\" (received "
-        << from_selector << ") !!";
+    std::cerr << "!! ERROR: from_selector must start with either \"edge\" or "
+                 "\"node\" (received "
+              << from_selector << ") !!";
     exit(-1);
   }
 
-  bool to_sel_has_prefix =
-      testgraph::testgraph::is_edge_selector(to_selector) ||
-      testgraph::testgraph::is_node_selector(to_selector);
-  if (to_sel_has_prefix) {
-    std::cerr << "Warning: stripping prefix from to_selector" << std::endl;
-    to_selector = to_selector.substr(5);
-  }
-  if (edge_sel && the_graph.has_edge_series(to_selector)) {
+  if (the_graph.has_series(to_selector)) {
     std::cerr << "!! ERROR: Selector name " << to_selector
-              << " already exists in edge table !!" << std::endl;
-    exit(-1);
-  }
-  if (!edge_sel && the_graph.has_node_series(to_selector)) {
-    std::cerr << "!! ERROR: Selector name " << to_selector
-              << " already exists in node table !!" << std::endl;
+              << " already exists in graph !!" << std::endl;
     exit(-1);
   }
 
@@ -90,6 +78,7 @@ int main(int argc, char **argv) {
       selectors.erase(to_selector);
     }
     from_selector = from_selector.substr(5);
+    to_selector = to_selector.substr(5);
     if (edge_sel) {
       if (!the_graph.copy_edge_series(from_selector, to_selector)) {
         std::cerr << "!! ERROR: copy failed from " << from_selector << " to "

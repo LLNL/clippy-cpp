@@ -186,6 +186,59 @@ class mvmap {
       }
       return itk_r[l.loc];
     }
+
+    std::pair<std::optional<std::pair<V, locator>>,
+              std::optional<std::pair<V, locator>>>
+    extrema() {
+      V min = std::numeric_limits<V>::max();
+      V max = std::numeric_limits<V>::min();
+      bool found_min = false;
+      bool found_max = false;
+      locator min_loc;
+      locator max_loc;
+      for_all([&min, &max, &found_min, &found_max, &min_loc, &max_loc](
+                  auto k, auto l, auto v) {
+        if (v < min) {
+          min = v;
+          min_loc = l;
+          found_min = true;
+        }
+        if (v > max) {
+          max = v;
+          max_loc = l;
+          found_max = true;
+        }
+      });
+      std::optional<std::pair<V, locator>> min_opt =
+          found_min ? std::make_pair(min, min_loc) : std::nullopt;
+      std::optional<std::pair<V, locator>> max_opt =
+          found_max ? std::make_pair(max, max_loc) : std::nullopt;
+      return std::make_pair(min_opt, max_opt);
+    }
+
+    std::map<V, size_t> histogram(size_t n_bins = 0) {
+      std::map<V, size_t> hist;
+      auto [min, max] = extrema();
+      if (!min.has_value() || !max.has_value()) {
+        return hist;
+      }
+      V min_val = min.value().first;
+      V max_val = max.value().first;
+      if (min_val == max_val) {
+        hist[min_val] = series_r.size();
+        return hist;
+      }
+      if (n_bins == 0) {
+        n_bins = series_r.size();
+      }
+      V bin_width = (max_val - min_val) / n_bins;
+      for_all([&hist, min_val, bin_width](auto /*unused*/, auto /*unused*/,
+                                          auto v) {
+        hist[min_val + (v - min_val) / bin_width]++;
+      });
+      return hist;
+    }
+
   };  // end of series
   /////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////////
@@ -256,8 +309,9 @@ class mvmap {
     return series_proxy(name, desc, std::get<series<V>>(data[name]), *this);
   }
 
-  // copies an existing column (series) to a new column and returns true. If the
-  // new column already exists, or if the existing column doesn't, return false.
+  // copies an existing column (series) to a new (unmanifested) column and
+  // returns true. If the new column already exists, or if the existing column
+  // doesn't, return false.
   bool copy_series(const std::string &from, const std::string &to) {
     if (has_series(to) || !has_series(from)) {
       std::cerr << "copy_series failed from " << from << " to " << to
