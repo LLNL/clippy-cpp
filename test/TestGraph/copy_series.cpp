@@ -9,6 +9,7 @@
 #include <variant>
 
 #include "clippy/clippy.hpp"
+#include "clippy/selector.hpp"
 #include "testgraph.hpp"
 
 namespace boostjsn = boost::json;
@@ -19,10 +20,10 @@ static const std::string sel_state_name = "selectors";
 
 int main(int argc, char **argv) {
   clippy::clippy clip{method_name, "Copies a subselector to a new subselector"};
-  clip.add_required<boostjsn::object>("from_sel", "Source Selector");
-  clip.add_required<boostjsn::object>("to_sel", "Target Selector");
+  clip.add_required<selector>("from_sel", "Source Selector");
+  clip.add_required<selector>("to_sel", "Target Selector");
 
-  clip.add_required_state<std::map<std::string, std::string>>(
+  clip.add_required_state<std::map<selector, std::string>>(
       sel_state_name, "Internal container for pending selectors");
   clip.add_required_state<testgraph::testgraph>(graph_state_name,
                                                 "Internal state for the graph");
@@ -31,26 +32,9 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  auto from_selector_obj = clip.get<boostjsn::object>("from_sel");
-  auto to_selector_obj = clip.get<boostjsn::object>("to_sel");
+  auto from_selector = clip.get<selector>("from_sel");
+  auto to_selector = clip.get<selector>("to_sel");
 
-  auto from_selector_opt =
-      testgraph::testgraph::selector_obj_to_string(from_selector_obj);
-
-  if (!from_selector_opt.has_value()) {
-    std::cerr << "!! ERROR: invalid from_selector !!" << std::endl;
-    exit(-1);
-  }
-  auto to_selector_opt =
-      testgraph::testgraph::selector_obj_to_string(to_selector_obj);
-
-  if (!to_selector_opt.has_value()) {
-    std::cerr << "!! ERROR: invalid to_selector !!" << std::endl;
-    exit(-1);
-  }
-
-  auto from_selector = from_selector_opt.value();
-  auto to_selector = to_selector_opt.value();
   // std::map<std::string, std::string> selectors;
   auto the_graph = clip.get_state<testgraph::testgraph>(graph_state_name);
 
@@ -72,13 +56,21 @@ int main(int argc, char **argv) {
 
   if (clip.has_state(sel_state_name)) {
     auto selectors =
-        clip.get_state<std::map<std::string, std::string>>(sel_state_name);
+        clip.get_state<std::map<selector, std::string>>(sel_state_name);
     if (selectors.contains(to_selector)) {
       std::cerr << "Warning: Using unmanifested selector." << std::endl;
       selectors.erase(to_selector);
     }
-    from_selector = from_selector.substr(5);
-    to_selector = to_selector.substr(5);
+    auto from_selector_tail = from_selector.tail();
+    auto to_selector_tail = to_selector.tail();
+    if (!from_selector_tail.has_value() || !to_selector_tail.has_value()) {
+      std::cerr
+          << "!! ERROR: from_selector and to_selector must have content !!"
+          << std::endl;
+      exit(1);
+    }
+    from_selector = from_selector_tail.value();
+    to_selector = to_selector_tail.value();
     if (edge_sel) {
       if (!the_graph.copy_edge_series(from_selector, to_selector)) {
         std::cerr << "!! ERROR: copy failed from " << from_selector << " to "

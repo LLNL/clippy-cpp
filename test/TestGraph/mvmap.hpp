@@ -12,6 +12,8 @@
 #include <utility>
 #include <variant>
 
+#include "clippy/selector.hpp"
+
 namespace mvmap {
 using index = uint64_t;
 class locator {
@@ -51,14 +53,14 @@ class mvmap {
 
   idx_to_key itk;
   key_to_idx kti;
-  std::map<std::string, std::variant<series<Vs>...>> data;
-  std::map<std::string, std::string> series_desc;
+  std::map<selector, std::variant<series<Vs>...>> data;
+  std::map<selector, std::string> series_desc;
 
  public:
   // A series_proxy is a reference to a series in an mvmap.
   template <typename V>
   class series_proxy {
-    std::string id;
+    selector id;
     std::string_view desc;
     key_to_idx &kti_r;
     idx_to_key &itk_r;
@@ -83,10 +85,10 @@ class mvmap {
     }
 
    public:
-    series_proxy(std::string id, series<V> &ser, mvmap<K, Vs...> &m)
+    series_proxy(selector id, series<V> &ser, mvmap<K, Vs...> &m)
         : id(std::move(id)), kti_r(m.kti), itk_r(m.itk), series_r(ser) {}
 
-    series_proxy(std::string id, const std::string &desc, series<V> &ser,
+    series_proxy(selector id, const std::string &desc, series<V> &ser,
                  mvmap<K, Vs...> &m)
         : id(std::move(id)),
           desc(desc),
@@ -243,7 +245,7 @@ class mvmap {
   /////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////////
   mvmap(const idx_to_key &itk, const key_to_idx &kti,
-        const std::map<std::string, std::variant<series<Vs>...>> &data)
+        const std::map<selector, std::variant<series<Vs>...>> &data)
       : itk(itk), kti(kti), data(data) {}
 
   mvmap() = default;
@@ -262,11 +264,11 @@ class mvmap {
     // template <typename T> using series = std::map<index, T>;
     using key_to_idx = std::map<K, index>;
     using idx_to_key = std::map<index, K>;
-    return {boost::json::value_to<idx_to_key>(obj.at("itk")),
-            boost::json::value_to<key_to_idx>(obj.at("kti")),
-            boost::json::value_to<
-                std::map<std::string, std::variant<series<Vs>...>>>(
-                obj.at("data"))};
+    return {
+        boost::json::value_to<idx_to_key>(obj.at("itk")),
+        boost::json::value_to<key_to_idx>(obj.at("kti")),
+        boost::json::value_to<std::map<selector, std::variant<series<Vs>...>>>(
+            obj.at("data"))};
   }
 
   [[nodiscard]] size_t size() const { return kti.size(); }
@@ -280,16 +282,16 @@ class mvmap {
     return true;
   }
 
-  [[nodiscard]] std::vector<std::string_view> list_series() const {
+  [[nodiscard]] std::vector<selector> list_series() const {
     return std::views::keys(data);
   }
 
-  [[nodiscard]] bool has_series(const std::string &id) const {
+  [[nodiscard]] bool has_series(const selector &id) const {
     return data.contains(id);
   }
 
   template <typename V>
-  [[nodiscard]] bool has_series(const std::string &id) const {
+  [[nodiscard]] bool has_series(const selector &id) const {
     return data.contains(id) && std::holds_alternative<series<V>>(data[id]);
   }
 
@@ -299,20 +301,20 @@ class mvmap {
   // adds a new column (series) to the mvmap and returns true. If already
   // exists, return false
   template <typename V>
-  std::optional<series_proxy<V>> add_series(const std::string &name,
+  std::optional<series_proxy<V>> add_series(const selector &sel,
                                             const std::string &desc = "") {
-    if (has_series(name)) {
+    if (has_series(sel)) {
       return std::nullopt;
     }
-    data[name] = series<V>{};
-    series_desc[name] = desc;
-    return series_proxy(name, desc, std::get<series<V>>(data[name]), *this);
+    data[sel] = series<V>{};
+    series_desc[sel] = desc;
+    return series_proxy(sel, desc, std::get<series<V>>(data[sel]), *this);
   }
 
   // copies an existing column (series) to a new (unmanifested) column and
   // returns true. If the new column already exists, or if the existing column
   // doesn't, return false.
-  bool copy_series(const std::string &from, const std::string &to) {
+  bool copy_series(const selector &from, const selector &to) {
     if (has_series(to) || !has_series(from)) {
       std::cerr << "copy_series failed from " << from << " to " << to
                 << std::endl;
@@ -324,49 +326,33 @@ class mvmap {
   }
 
   template <typename V>
-  std::optional<series_proxy<V>> get_series(const std::string &name) {
-    if (!has_series<V>(name)) {
+  std::optional<series_proxy<V>> get_series(const selector &sel) {
+    if (!has_series<V>(sel)) {
       // series doesn't exist or is of the wrong type.
       return std::nullopt;
     }
-    return series_proxy<V>(name, std::get<series<V>>(data[name]), *this);
+    return series_proxy<V>(sel, std::get<series<V>>(data[sel]), *this);
   }
 
   std::optional<series_proxy<variants>> get_variant_series(
-      const std::string &name) {
-    if (!has_series(name)) {
+      const selector &sel) {
+    if (!has_series(sel)) {
       return std::nullopt;
     }
-    return series_proxy<variants>(name, data[name], *this);
+    return series_proxy<variants>(sel, data[sel], *this);
   }
 
-  void drop_series(const std::string &name) {
-    if (!has_series(name)) {
+  void drop_series(const selector &sel) {
+    if (!has_series(sel)) {
       return;
     }
-    data.erase(name);
-    series_desc.erase(name);
+    data.erase(sel);
+    series_desc.erase(sel);
   }
 
-  mvmap::variants get_as_variant(const std::string &name, const locator &loc) {
-    return data[name][loc.loc];
+  mvmap::variants get_as_variant(const selector &sel, const locator &loc) {
+    return data[sel][loc.loc];
   }
-
-  // returns a series_proxy for the given string. If the series doesn't exist,
-  // create it.
-  // template <typename V>
-  // series_proxy<V> get_or_create_series(const std::string &id,
-  //                                      const std::string &desc = "") {
-  //   if (data.count(id) == 0) {
-  //     add_series<V>(id, desc);
-  //   } else {
-  //     if (!std::holds_alternative<series<V>>(data[id])) {
-  //       throw std::runtime_error(
-  //           "series id already exists with different type");
-  //     }
-  //   }
-  //   return series_proxy<V>(id, desc, std::get<series<V>>(data[id]), *this);
-  // }
 
   // F is a function that takes a key and a locator.
   // Users will need to close over series_proxies that they want to use.
