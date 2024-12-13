@@ -69,13 +69,13 @@ class mvmap {
     using series_type = V;
 
     // returns true if there is an index assigned to a given key
-    bool has_idx(K k) { return kti_r.count(k) > 0; }
+    bool has_idx_at_key(K k) const { return kti_r.contains(k); }
     // returns true if there is a key assigned to a given locator
-    bool has_key(locator l) { return itk_r.count(l) > 0; }
+    bool has_key_at_index(locator l) const { return itk_r.contains(l.loc); }
 
     // returns or creates the index for a key.
     index get_idx(K k) {
-      if (!has_idx(k)) {
+      if (!has_idx_at_key(k)) {
         index i{kti_r.size()};
         kti_r[k] = i;
         itk_r[i] = k;
@@ -104,27 +104,27 @@ class mvmap {
     const V &operator[](locator l) const { return series_r[l.loc]; }
 
     std::optional<std::reference_wrapper<V>> at(locator l) {
-      if (!has_key(l)) {
+      if (!has_key_at_index(l)) {
         return {};
       }
       return series_r[l.loc];
     };
     std::optional<std::reference_wrapper<const V>> at(locator l) const {
-      if (!has_key(l)) {
+      if (!has_key_at_index(l)) {
         return {};
       }
       return series_r[l.loc];
     };
 
     std::optional<std::reference_wrapper<V>> at(K k) {
-      if (!has_idx(k)) {
+      if (!has_idx_at_key(k)) {
         return {};
       }
       return series_r[get_idx(k)];
     };
 
     std::optional<std::reference_wrapper<const V>> at(K k) const {
-      if (!has_idx(k)) {
+      if (!has_idx_at_key(k)) {
         return {};
       }
       return series_r[get_idx(k)];
@@ -172,7 +172,7 @@ class mvmap {
 
     // if the key doesn't exist, do nothing.
     void erase(const K &k) {
-      if (!has_idx(k)) {
+      if (!has_idx_at_key(k)) {
         return;
       }
       auto i = kti_r[k];
@@ -183,14 +183,14 @@ class mvmap {
     // locator is invalid.
     std::optional<std::reference_wrapper<const K>> get_key(
         const locator &l) const {
-      if (!has_idx(l.loc)) {
-        return {};
+      if (!has_key_at_index(l.loc)) {
+        return std::nullopt;
       }
       return itk_r[l.loc];
     }
 
-    std::pair<std::optional<std::pair<V, locator>>,
-              std::optional<std::pair<V, locator>>>
+    std::pair<std::optional<std::tuple<V, K, locator>>,
+              std::optional<std::tuple<V, K, locator>>>
     extrema() {
       V min = std::numeric_limits<V>::max();
       V max = std::numeric_limits<V>::min();
@@ -198,23 +198,34 @@ class mvmap {
       bool found_max = false;
       locator min_loc;
       locator max_loc;
-      for_all([&min, &max, &found_min, &found_max, &min_loc, &max_loc](
-                  auto k, auto l, auto v) {
+      K min_key;
+      K max_key;
+      for_all([&min, &max, &found_min, &found_max, &min_loc, &max_loc, &min_key,
+               &max_key](auto k, auto l, auto v) {
         if (v < min) {
           min = v;
           min_loc = l;
+          min_key = k;
           found_min = true;
         }
         if (v > max) {
           max = v;
           max_loc = l;
+          max_key = k;
           found_max = true;
         }
       });
-      std::optional<std::pair<V, locator>> min_opt =
-          found_min ? std::make_pair(min, min_loc) : std::nullopt;
-      std::optional<std::pair<V, locator>> max_opt =
-          found_max ? std::make_pair(max, max_loc) : std::nullopt;
+      std::optional<std::tuple<V, K, locator>> min_opt, max_opt;
+      if (found_min) {
+        min_opt = std::make_tuple(min, min_key, min_loc);
+      } else {
+        min_opt = std::nullopt;
+      }
+      if (found_max) {
+        max_opt = std::make_tuple(max, max_key, max_loc);
+      } else {
+        max_opt = std::nullopt;
+      }
       return std::make_pair(min_opt, max_opt);
     }
 
@@ -292,9 +303,8 @@ class mvmap {
 
   template <typename V>
   [[nodiscard]] bool has_series(const selector &id) const {
-    return data.contains(id) && std::holds_alternative<series<V>>(data[id]);
+    return data.contains(id) && std::holds_alternative<series<V>>(data.at(id));
   }
-
   bool contains(const K &k) { return kti.contains(k); }
   auto keys() const { return std::views::keys(kti); }
 

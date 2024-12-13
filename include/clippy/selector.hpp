@@ -25,8 +25,15 @@ class selector {
   friend std::ostream &operator<<(std::ostream &os, const selector &sel);
   friend void tag_invoke(boost::json::value_from_tag /*unused*/,
                          boost::json::value &v, const selector &sel);
-  selector(std::string sel) : sel_str(sel), dots(make_dots(sel_str)) {}
-
+  explicit selector(const std::string &sel)
+      : sel_str(sel), dots(make_dots(sel_str)) {}
+  explicit selector(const char *sel) : selector(std::string(sel)) {}
+  selector(boost::json::object o) {
+    std::cerr << "object constructor: o = " << o << std::endl;
+    auto v = o.at("rule").as_object()["var"];
+    std::cerr << "object constructor: v = " << v << std::endl;
+    sel_str = v.as_string().c_str();
+  }
   bool operator<(const selector &other) const {
     return sel_str < other.sel_str;
   }
@@ -38,7 +45,7 @@ class selector {
     if (dots.size() <= 1) {
       return std::nullopt;
     }
-    return selector(sel_str.substr(dots[1]));
+    return selector(sel_str.substr(dots[1] + 1));
   }
 };
 
@@ -49,10 +56,17 @@ std::ostream &operator<<(std::ostream &os, const selector &sel) {
 
 selector tag_invoke(boost::json::value_to_tag<selector> /*unused*/,
                     const boost::json::value &v) {
-  return boost::json::value_to<std::string>(v);
+  std::cerr << "tag_invoke 1 v = " << v << std::endl;
+  // std::cerr << "tag_invoke 2 v = " << v.as_string() << std::endl;
+  return selector(v.as_object());
 }
 
 void tag_invoke(boost::json::value_from_tag /*unused*/, boost::json::value &v,
                 const selector &sel) {
-  v = sel.sel_str;
+  std::cerr << "This should not be called." << std::endl;
+  // std::map<std::string, std::string> o {};
+  // o["expression_type"] = "jsonlogic";
+  // o["rule"] = {{"var", sel.sel_str}};
+  // v =  {"expression_type": "jsonlogic", "rule": {"var":
+  // "node.degree"}}}sel.sel_str;
 }

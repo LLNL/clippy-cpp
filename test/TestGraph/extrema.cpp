@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include "clippy/clippy-eval.hpp"
+#include "clippy/selector.hpp"
 #include "testgraph.hpp"
 
 static const std::string method_name = "extrema";
@@ -18,68 +19,92 @@ static const std::string sel_state_name = "selectors";
 int main(int argc, char **argv) {
   clippy::clippy clip{method_name,
                       "returns the extrema of a series based on selector"};
-  clip.add_required<boost::json::object>(
-      "selector", "Existing selector name to calculate extrema");
+  clip.add_required<selector>("selector",
+                              "Existing selector name to calculate extrema");
   clip.add_required_state<testgraph::testgraph>(state_name,
                                                 "Internal container");
-  clip.returns<std::pair<double, double>>("min and max values of the series");
 
+  std::cerr << "past add_required" << std::endl;
   // no object-state requirements in constructor
+  std::cerr << "argc = " << argc << ", argv[0] = " << argv[0] << std::endl;
   if (clip.parse(argc, argv)) {
     return 0;
   }
 
-  auto sel_json = clip.get<boost::json::object>("selector");
+  std::cerr << "past clip.parse" << std::endl;
+  auto sel_str = clip.get<std::string>("selector");
+  std::cerr << "past clip.get; sel_str = " << sel_str << std::endl;
+  selector sel{sel_str};
+  std::cerr << "past clip.get<selector>" << std::endl;
+  bool is_edge_sel = testgraph::testgraph::is_edge_selector(sel);
+  bool is_node_sel = testgraph::testgraph::is_node_selector(sel);
 
-  std::string sel;
-  try {
-    if (sel_json["expression_type"].as_string() != std::string("jsonlogic")) {
-      std::cerr << " NOT A THINGY " << std::endl;
-      exit(-1);
-    }
-    sel = sel_json["rule"].as_object()["var"].as_string().c_str();
-  } catch (...) {
-    std::cerr << "!! ERROR !!" << std::endl;
-    exit(-1);
-  }
-
-  if (!sel.starts_with("node.")) {
-    std::cerr << "Selector must be a node subselector" << std::endl;
+  std::cerr << "past is_sel" << std::endl;
+  if (!is_edge_sel && !is_node_sel) {
+    std::cerr << "Selector must start with either \"edge\" or \"node\""
+              << std::endl;
     return 1;
   }
+
+  auto tail_opt = sel.tail();
+  if (!tail_opt) {
+    std::cerr << "Selector must have a tail" << std::endl;
+    return 1;
+  }
+  auto tail_sel = tail_opt.value();
+
   auto the_graph = clip.get_state<testgraph::testgraph>(state_name);
 
-  auto selectors =
-      clip.get_state<std::map<std::string, std::string>>(sel_state_name);
-  if (!selectors.contains(sel)) {
-    std::cerr << "Selector not found" << std::endl;
-    return 1;
-  }
-  auto subsel = sel.substr(5);
-  if (the_graph.has_node_series(subsel)) {
-    std::cerr << "Selector already populated" << std::endl;
-    return 1;
-  }
-
-  auto deg_o = the_graph.add_node_series<long int>(subsel, "Degree");
-  if (!deg_o) {
-    std::cerr << "Unable to manifest node series" << std::endl;
-    return 1;
-  }
-
-  auto deg = deg_o.value();
-
-  the_graph.for_all_edges([&deg](auto edge, mvmap::locator /*unused*/) {
-    deg[edge.first]++;
-    if (edge.first != edge.second) {
-      deg[edge.second]++;
+  std::cerr << "past the_graph" << std::endl;
+  if (is_edge_sel) {
+    clip.returns<std::pair<std::pair<testgraph::edge_t, double>,
+                           std::pair<testgraph::edge_t, double>>>(
+        "min and max keys and values of the series");
+    auto series = the_graph.get_edge_series<double>(tail_sel);
+    if (!series) {
+      std::cerr << "Edge series not found" << std::endl;
+      return 1;
     }
-  });
+    auto series_val = series.value();
+    auto [min_tup, max_tup] = series_val.extrema();
+
+    testgraph::edge_t min_key =
+        min_tup ? std::get<1>(min_tup.value()) : std::make_pair("", "");
+    testgraph::edge_t max_key =
+        max_tup ? std::get<1>(max_tup.value()) : std::make_pair("", "");
+
+    auto extrema = std::make_pair(min_key, max_key);
+    clip.to_return(extrema);
+  }
+
+  if (is_node_sel) {
+    // clip.returns<std::pair<std::pair<testgraph::node_t, double>,
+    //                        std::pair<testgraph::node_t, double>>>(
+    //     "min and max keys and values of the series");
+
+    // clip.returns<std::pair<std::string, std::string>>(
+    //     "min and max keys of the series");
+
+    clip.returns<std::string>("min of the series");
+
+    auto series = the_graph.get_node_series<double>(tail_sel);
+    if (!series) {
+      std::cerr << "Node series not found" << std::endl;
+      return 1;
+    }
+    auto series_val = series.value();
+    auto [min_tup, max_tup] = series_val.extrema();
+
+    testgraph::node_t min_key = min_tup ? std::get<1>(min_tup.value()) : "";
+    testgraph::node_t max_key = max_tup ? std::get<1>(max_tup.value()) : "";
+
+    auto extrema = std::make_pair(min_key, max_key);
+    std::cerr << "extrema: " << extrema.first << ", " << extrema.second
+              << std::endl;
+    auto tempex = std::make_pair(min_key, max_key);
+    clip.to_return<std::string>(min_key);
+  }
 
   clip.set_state(state_name, the_graph);
-  clip.set_state(sel_state_name, selectors);
-  clip.update_selectors(selectors);
-
-  clip.return_self();
   return 0;
 }

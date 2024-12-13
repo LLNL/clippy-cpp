@@ -35,7 +35,6 @@ int main(int argc, char **argv) {
   auto from_selector = clip.get<selector>("from_sel");
   auto to_selector = clip.get<selector>("to_sel");
 
-  // std::map<std::string, std::string> selectors;
   auto the_graph = clip.get_state<testgraph::testgraph>(graph_state_name);
 
   bool edge_sel = false;  // if false, then node selector

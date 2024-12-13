@@ -9,6 +9,7 @@ add_test(TestGraph add_series)
 add_test(TestGraph connected_components)
 add_test(TestGraph drop_series)
 add_test(TestGraph copy_series)
+add_test(TestGraph extrema)
 add_custom_command(
         TARGET TestGraph_nv POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
