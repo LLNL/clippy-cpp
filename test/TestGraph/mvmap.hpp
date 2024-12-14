@@ -11,8 +11,7 @@
 #include <string>
 #include <utility>
 #include <variant>
-
-#include "clippy/selector.hpp"
+#include <vector>
 
 namespace mvmap {
 using index = uint64_t;
@@ -53,14 +52,14 @@ class mvmap {
 
   idx_to_key itk;
   key_to_idx kti;
-  std::map<selector, std::variant<series<Vs>...>> data;
-  std::map<selector, std::string> series_desc;
+  std::map<std::string, std::variant<series<Vs>...>> data;
+  std::map<std::string, std::string> series_desc;
 
  public:
   // A series_proxy is a reference to a series in an mvmap.
   template <typename V>
   class series_proxy {
-    selector id;
+    std::string id;
     std::string_view desc;
     key_to_idx &kti_r;
     idx_to_key &itk_r;
@@ -85,10 +84,10 @@ class mvmap {
     }
 
    public:
-    series_proxy(selector id, series<V> &ser, mvmap<K, Vs...> &m)
+    series_proxy(std::string id, series<V> &ser, mvmap<K, Vs...> &m)
         : id(std::move(id)), kti_r(m.kti), itk_r(m.itk), series_r(ser) {}
 
-    series_proxy(selector id, const std::string &desc, series<V> &ser,
+    series_proxy(std::string id, const std::string &desc, series<V> &ser,
                  mvmap<K, Vs...> &m)
         : id(std::move(id)),
           desc(desc),
@@ -256,7 +255,7 @@ class mvmap {
   /////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////////
   mvmap(const idx_to_key &itk, const key_to_idx &kti,
-        const std::map<selector, std::variant<series<Vs>...>> &data)
+        const std::map<std::string, std::variant<series<Vs>...>> &data)
       : itk(itk), kti(kti), data(data) {}
 
   mvmap() = default;
@@ -275,11 +274,11 @@ class mvmap {
     // template <typename T> using series = std::map<index, T>;
     using key_to_idx = std::map<K, index>;
     using idx_to_key = std::map<index, K>;
-    return {
-        boost::json::value_to<idx_to_key>(obj.at("itk")),
-        boost::json::value_to<key_to_idx>(obj.at("kti")),
-        boost::json::value_to<std::map<selector, std::variant<series<Vs>...>>>(
-            obj.at("data"))};
+    return {boost::json::value_to<idx_to_key>(obj.at("itk")),
+            boost::json::value_to<key_to_idx>(obj.at("kti")),
+            boost::json::value_to<
+                std::map<std::string, std::variant<series<Vs>...>>>(
+                obj.at("data"))};
   }
 
   [[nodiscard]] size_t size() const { return kti.size(); }
@@ -293,16 +292,16 @@ class mvmap {
     return true;
   }
 
-  [[nodiscard]] std::vector<selector> list_series() const {
+  [[nodiscard]] std::vector<std::string> list_series() const {
     return std::views::keys(data);
   }
 
-  [[nodiscard]] bool has_series(const selector &id) const {
+  [[nodiscard]] bool has_series(const std::string &id) const {
     return data.contains(id);
   }
 
   template <typename V>
-  [[nodiscard]] bool has_series(const selector &id) const {
+  [[nodiscard]] bool has_series(const std::string &id) const {
     return data.contains(id) && std::holds_alternative<series<V>>(data.at(id));
   }
   bool contains(const K &k) { return kti.contains(k); }
@@ -311,7 +310,7 @@ class mvmap {
   // adds a new column (series) to the mvmap and returns true. If already
   // exists, return false
   template <typename V>
-  std::optional<series_proxy<V>> add_series(const selector &sel,
+  std::optional<series_proxy<V>> add_series(const std::string &sel,
                                             const std::string &desc = "") {
     if (has_series(sel)) {
       return std::nullopt;
@@ -324,7 +323,7 @@ class mvmap {
   // copies an existing column (series) to a new (unmanifested) column and
   // returns true. If the new column already exists, or if the existing column
   // doesn't, return false.
-  bool copy_series(const selector &from, const selector &to) {
+  bool copy_series(const std::string &from, const std::string &to) {
     if (has_series(to) || !has_series(from)) {
       std::cerr << "copy_series failed from " << from << " to " << to
                 << std::endl;
@@ -336,7 +335,7 @@ class mvmap {
   }
 
   template <typename V>
-  std::optional<series_proxy<V>> get_series(const selector &sel) {
+  std::optional<series_proxy<V>> get_series(const std::string &sel) {
     if (!has_series<V>(sel)) {
       // series doesn't exist or is of the wrong type.
       return std::nullopt;
@@ -345,14 +344,14 @@ class mvmap {
   }
 
   std::optional<series_proxy<variants>> get_variant_series(
-      const selector &sel) {
+      const std::string &sel) {
     if (!has_series(sel)) {
       return std::nullopt;
     }
     return series_proxy<variants>(sel, data[sel], *this);
   }
 
-  void drop_series(const selector &sel) {
+  void drop_series(const std::string &sel) {
     if (!has_series(sel)) {
       return;
     }
@@ -360,7 +359,7 @@ class mvmap {
     series_desc.erase(sel);
   }
 
-  mvmap::variants get_as_variant(const selector &sel, const locator &loc) {
+  mvmap::variants get_as_variant(const std::string &sel, const locator &loc) {
     return data[sel][loc.loc];
   }
 

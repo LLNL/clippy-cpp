@@ -4,11 +4,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "clippy/clippy-eval.hpp"
-#include "testgraph.hpp"
 #include <boost/json.hpp>
 #include <clippy/clippy.hpp>
 #include <iostream>
+#include <map>
+
+#include "clippy/clippy-eval.hpp"
+#include "testgraph.hpp"
 
 static const std::string method_name = "degree";
 static const std::string state_name = "INTERNAL";
@@ -63,7 +65,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  auto deg_o = the_graph.add_node_series<long int>(subsel, "Degree");
+  auto deg_o = the_graph.add_node_series<int64_t>(subsel, "Degree");
   if (!deg_o) {
     std::cerr << "Unable to manifest node series" << std::endl;
     return 1;

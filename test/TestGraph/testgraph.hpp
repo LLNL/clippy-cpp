@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "boost/json.hpp"
-#include "clippy/selector.hpp"
 #include "mvmap.hpp"
 
 namespace testgraph {
@@ -30,15 +29,15 @@ class testgraph {
   edge_mvmap edge_table;
 
  public:
-  static inline bool is_edge_selector(const selector &sel) {
-    return sel.headeq("edge");
+  static inline bool is_edge_selector(const std::string &sel) {
+    return sel.starts_with("edge.");
   }
 
-  static inline bool is_node_selector(const selector &sel) {
-    return sel.headeq("node");
+  static inline bool is_node_selector(const std::string &sel) {
+    return sel.starts_with("node.");
   }
 
-  static inline bool is_valid_selector(const selector &sel) {
+  static inline bool is_valid_selector(const std::string &sel) {
     return is_edge_selector(sel) || is_node_selector(sel);
   }
 
@@ -62,45 +61,45 @@ class testgraph {
   // this function requires that the "edge." prefix be removed from the name.
   template <typename T>
   std::optional<edge_series_proxy<T>> add_edge_series(
-      const selector &sel, const std::string &desc = "") {
+      const std::string &sel, const std::string &desc = "") {
     return edge_table.add_series<T>(sel, desc);
   }
 
   template <typename T>
   std::optional<edge_series_proxy<T>> add_edge_series(
-      const selector &sel, const edge_series_proxy<T> &from,
+      const std::string &sel, const edge_series_proxy<T> &from,
       const std::string &desc = "") {
     return edge_table.add_series<T>(sel, from, desc);
   }
 
-  void drop_edge_series(const selector &sel) { edge_table.drop_series(sel); }
+  void drop_edge_series(const std::string &sel) { edge_table.drop_series(sel); }
 
   // this function requires that the "node." prefix be removed from the name.
-  void drop_node_series(const selector &sel) { node_table.drop_series(sel); }
+  void drop_node_series(const std::string &sel) { node_table.drop_series(sel); }
 
   // this function requires that the "node." prefix be removed from the name.
   template <typename T>
   std::optional<node_series_proxy<T>> add_node_series(
-      const selector &sel, const std::string &desc = "") {
+      const std::string &sel, const std::string &desc = "") {
     return node_table.add_series<T>(sel, desc);
   }
 
   template <typename T>
   std::optional<edge_series_proxy<T>> add_node_series(
-      const selector &sel, const node_series_proxy<T> &from,
+      const std::string &sel, const node_series_proxy<T> &from,
       const std::string &desc = "") {
     return node_table.add_series<T>(sel, from, desc);
   }
   template <typename T>
-  std::optional<edge_series_proxy<T>> get_edge_series(const selector &sel) {
+  std::optional<edge_series_proxy<T>> get_edge_series(const std::string &sel) {
     return edge_table.get_series<T>(sel);
   }
 
-  bool copy_edge_series(const selector &from, const selector &to) {
+  bool copy_edge_series(const std::string &from, const std::string &to) {
     return edge_table.copy_series(from, to);
   }
 
-  bool copy_node_series(const selector &from, const selector &to) {
+  bool copy_node_series(const std::string &from, const std::string &to) {
     std::cerr << "copy_node_series: from = " << from << ", to = " << to
               << std::endl;
 
@@ -108,7 +107,7 @@ class testgraph {
   }
 
   template <typename T>
-  std::optional<node_series_proxy<T>> get_node_series(const selector &sel) {
+  std::optional<node_series_proxy<T>> get_node_series(const std::string &sel) {
     return node_table.get_series<T>(sel);
   }
 
@@ -146,27 +145,27 @@ class testgraph {
     return edge_table.contains({src, dst});
   };
 
-  // strips the head off the selector and passes the tail to the appropriate
+  // strips the head off the std::string and passes the tail to the appropriate
   // method.
-  [[nodiscard]] bool has_series(const selector &sel) const {
-    auto tail = sel.tail();
+  [[nodiscard]] bool has_series(const std::string &sel) const {
+    auto tail = sel.substr(5);
 
-    if (is_node_selector(sel) && tail.has_value()) {
-      return has_node_series(tail.value());
+    if (is_node_selector(sel)) {
+      return has_node_series(tail);
     }
-    if (is_edge_selector(sel) && tail.has_value()) {
-      return has_edge_series(tail.value());
+    if (is_edge_selector(sel)) {
+      return has_edge_series(tail);
     }
     return false;
   }
 
   // assumes sel has already been tail'ed.
-  [[nodiscard]] bool has_node_series(const selector &sel) const {
+  [[nodiscard]] bool has_node_series(const std::string &sel) const {
     return node_table.has_series(sel);
   }
 
   // assumes sel has already been tail'ed.
-  [[nodiscard]] bool has_edge_series(const selector &sel) const {
+  [[nodiscard]] bool has_edge_series(const std::string &sel) const {
     return edge_table.has_series(sel);
   }
 

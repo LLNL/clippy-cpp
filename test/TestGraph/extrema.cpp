@@ -24,22 +24,16 @@ int main(int argc, char **argv) {
   clip.add_required_state<testgraph::testgraph>(state_name,
                                                 "Internal container");
 
-  std::cerr << "past add_required" << std::endl;
   // no object-state requirements in constructor
-  std::cerr << "argc = " << argc << ", argv[0] = " << argv[0] << std::endl;
   if (clip.parse(argc, argv)) {
     return 0;
   }
-
-  std::cerr << "past clip.parse" << std::endl;
-  auto sel_str = clip.get<std::string>("selector");
-  std::cerr << "past clip.get; sel_str = " << sel_str << std::endl;
+  auto sel_str = clip.get<selector>("selector");
   selector sel{sel_str};
-  std::cerr << "past clip.get<selector>" << std::endl;
+
   bool is_edge_sel = testgraph::testgraph::is_edge_selector(sel);
   bool is_node_sel = testgraph::testgraph::is_node_selector(sel);
 
-  std::cerr << "past is_sel" << std::endl;
   if (!is_edge_sel && !is_node_sel) {
     std::cerr << "Selector must start with either \"edge\" or \"node\""
               << std::endl;
@@ -55,7 +49,6 @@ int main(int argc, char **argv) {
 
   auto the_graph = clip.get_state<testgraph::testgraph>(state_name);
 
-  std::cerr << "past the_graph" << std::endl;
   if (is_edge_sel) {
     clip.returns<std::pair<std::pair<testgraph::edge_t, double>,
                            std::pair<testgraph::edge_t, double>>>(
@@ -73,7 +66,10 @@ int main(int argc, char **argv) {
     testgraph::edge_t max_key =
         max_tup ? std::get<1>(max_tup.value()) : std::make_pair("", "");
 
-    auto extrema = std::make_pair(min_key, max_key);
+    double min_val = min_tup ? std::get<0>(min_tup.value()) : 0.0;
+    double max_val = max_tup ? std::get<0>(max_tup.value()) : 0.0;
+    auto extrema = std::make_pair(std::make_pair(min_key, min_val),
+                                  std::make_pair(max_key, max_val));
     clip.to_return(extrema);
   }
 
@@ -85,7 +81,9 @@ int main(int argc, char **argv) {
     // clip.returns<std::pair<std::string, std::string>>(
     //     "min and max keys of the series");
 
-    clip.returns<std::string>("min of the series");
+    clip.returns<std::pair<std::pair<testgraph::node_t, double>,
+                           std::pair<testgraph::node_t, double>>>(
+        "min of the series");
 
     auto series = the_graph.get_node_series<double>(tail_sel);
     if (!series) {
@@ -98,11 +96,13 @@ int main(int argc, char **argv) {
     testgraph::node_t min_key = min_tup ? std::get<1>(min_tup.value()) : "";
     testgraph::node_t max_key = max_tup ? std::get<1>(max_tup.value()) : "";
 
-    auto extrema = std::make_pair(min_key, max_key);
-    std::cerr << "extrema: " << extrema.first << ", " << extrema.second
-              << std::endl;
-    auto tempex = std::make_pair(min_key, max_key);
-    clip.to_return<std::string>(min_key);
+    double min_val = min_tup ? std::get<0>(min_tup.value()) : 0.0;
+    double max_val = max_tup ? std::get<0>(max_tup.value()) : 0.0;
+
+    auto extrema = std::make_pair(std::make_pair(min_key, min_val),
+                                  std::make_pair(max_key, max_val));
+    clip.to_return<std::pair<std::pair<std::string, double>,
+                             std::pair<std::string, double>>>(extrema);
   }
 
   clip.set_state(state_name, the_graph);

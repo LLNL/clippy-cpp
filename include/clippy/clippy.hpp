@@ -195,7 +195,6 @@ class clippy {
   }
 
   bool parse(int argc, char **argv) {
-    std::cerr << "in parse" << std::endl;
     const char *JSON_FLAG = "--clippy-help";
     const char *DRYRUN_FLAG = "--clippy-validate";
     if (argc == 2 && std::string(argv[1]) == JSON_FLAG) {
@@ -204,9 +203,7 @@ class clippy {
 
         logfile << "<-hlp- " << m_json_config << std::endl;
       }
-      std::cerr << "pre-cout" << std::endl;
       std::cout << m_json_config;
-      std::cerr << "post-cout" << std::endl;
       return true;
     }
     std::string buf;
@@ -279,7 +276,6 @@ class clippy {
 
     if (has_argument(name)) {  // if the argument exists
       auto foo = get_value(m_json_input, name);
-      std::cerr << "foo = " << foo << std::endl;
       return boost::json::value_to<T>(
           asContainer(get_value(m_json_input, name), requires_container));
     } else {  // it's an optional

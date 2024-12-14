@@ -1,6 +1,6 @@
-#include <iostream>
-
 #include "testgraph.hpp"
+
+#include <iostream>
 
 int main() {
   auto g = testgraph::testgraph{};

@@ -5,12 +5,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "clippy/clippy-eval.hpp"
-#include "testgraph.hpp"
 #include <boost/json.hpp>
 #include <clippy/clippy.hpp>
 #include <iostream>
 #include <queue>
+
+#include "clippy/clippy-eval.hpp"
+#include "testgraph.hpp"
 
 static const std::string method_name = "connected_components";
 static const std::string state_name = "INTERNAL";
@@ -65,20 +66,20 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  auto cc_o = the_graph.add_node_series<long int>(subsel, selectors.at(sel));
+  auto cc_o = the_graph.add_node_series<int64_t>(subsel, selectors.at(sel));
   if (!cc_o) {
     std::cerr << "Unable to manifest node series" << std::endl;
     return 1;
   }
 
   auto cc = cc_o.value();
-  std::map<testgraph::node_t, long int> ccmap;
+  std::map<testgraph::node_t, int64_t> ccmap;
 
-  long int i = 0;
+  int64_t i = 0;
   for (auto &node : the_graph.nodes()) {
     ccmap[node] = i++;
   }
-  std::vector<std::vector<long int>> adj(the_graph.nv());
+  std::vector<std::vector<int64_t>> adj(the_graph.nv());
   the_graph.for_all_edges([&adj, &ccmap](auto edge, mvmap::locator /*unused*/) {
     long i = ccmap[edge.first];
     long j = ccmap[edge.second];
@@ -87,18 +88,18 @@ int main(int argc, char **argv) {
   });
 
   std::vector<bool> visited(the_graph.nv(), false);
-  std::vector<long int> components(the_graph.nv());
+  std::vector<int64_t> components(the_graph.nv());
   std::iota(components.begin(), components.end(), 0);
 
-  for (long int i = 0; i < the_graph.nv(); ++i) {
+  for (int64_t i = 0; i < the_graph.nv(); ++i) {
     if (!visited[i]) {
-      std::queue<long int> q;
+      std::queue<int64_t> q;
       q.push(i);
       while (!q.empty()) {
-        long int v = q.front();
+        int64_t v = q.front();
         q.pop();
         visited[v] = true;
-        for (long int u : adj[v]) {
+        for (int64_t u : adj[v]) {
           if (!visited[u]) {
             q.push(u);
             components[u] = components[i];
@@ -110,7 +111,7 @@ int main(int argc, char **argv) {
 
   the_graph.for_all_nodes(
       [&components, &ccmap, &cc](auto node, mvmap::locator /*unused*/) {
-        long int i = ccmap[node];
+        int64_t i = ccmap[node];
         cc[node] = components[i];
       });
 
