@@ -50,59 +50,105 @@ int main(int argc, char **argv) {
   auto the_graph = clip.get_state<testgraph::testgraph>(state_name);
 
   if (is_edge_sel) {
-    clip.returns<std::pair<std::pair<testgraph::edge_t, double>,
-                           std::pair<testgraph::edge_t, double>>>(
+    clip.returns<std::map<std::string, std::pair<testgraph::edge_t, double>>>(
         "min and max keys and values of the series");
-    auto series = the_graph.get_edge_series<double>(tail_sel);
-    if (!series) {
-      std::cerr << "Edge series not found" << std::endl;
+    if (the_graph.has_edge_series<double>(tail_sel)) {
+      auto series = the_graph.get_edge_series<double>(tail_sel);
+      if (!series) {
+        std::cerr << "Edge series not found" << std::endl;
+        return 1;
+      }
+      auto series_val = series.value();
+      auto [min_tup, max_tup] = series_val.extrema();
+
+      std::map<std::string, std::pair<testgraph::edge_t, double>> extrema;
+      if (min_tup) {
+        extrema["min"] = std::make_pair(std::get<1>(min_tup.value()),
+                                        std::get<0>(min_tup.value()));
+      }
+
+      if (max_tup) {
+        extrema["max"] = std::make_pair(std::get<1>(max_tup.value()),
+                                        std::get<0>(max_tup.value()));
+      }
+      clip.to_return(extrema);
+    } else if (the_graph.has_edge_series<int64_t>(tail_sel)) {
+      auto series = the_graph.get_edge_series<int64_t>(tail_sel);
+      if (!series) {
+        std::cerr << "Edge series not found" << std::endl;
+        return 1;
+      }
+      auto series_val = series.value();
+      auto [min_tup, max_tup] = series_val.extrema();
+
+      std::map<std::string, std::pair<testgraph::edge_t, double>> extrema;
+      if (min_tup) {
+        extrema["min"] = std::make_pair(std::get<1>(min_tup.value()),
+                                        std::get<0>(min_tup.value()));
+      }
+
+      if (max_tup) {
+        extrema["max"] = std::make_pair(std::get<1>(max_tup.value()),
+                                        std::get<0>(max_tup.value()));
+      }
+      clip.to_return(extrema);
+    } else {
+      std::cerr << "Edge series is an invalid type" << std::endl;
       return 1;
     }
-    auto series_val = series.value();
-    auto [min_tup, max_tup] = series_val.extrema();
+  } else if (is_node_sel) {
+    if (the_graph.has_edge_series<double>(tail_sel)) {
+      clip.returns<std::map<std::string, std::pair<testgraph::node_t, double>>>(
+          "min and max keys and values of the series");
 
-    testgraph::edge_t min_key =
-        min_tup ? std::get<1>(min_tup.value()) : std::make_pair("", "");
-    testgraph::edge_t max_key =
-        max_tup ? std::get<1>(max_tup.value()) : std::make_pair("", "");
+      auto series = the_graph.get_node_series<int64_t>(tail_sel);
+      if (!series) {
+        std::cerr << "Edge series not found" << std::endl;
+        return 1;
+      }
 
-    double min_val = min_tup ? std::get<0>(min_tup.value()) : 0.0;
-    double max_val = max_tup ? std::get<0>(max_tup.value()) : 0.0;
-    auto extrema = std::make_pair(std::make_pair(min_key, min_val),
-                                  std::make_pair(max_key, max_val));
-    clip.to_return(extrema);
-  }
+      auto series_val = series.value();
+      auto [min_tup, max_tup] = series_val.extrema();
 
-  if (is_node_sel) {
-    // clip.returns<std::pair<std::pair<testgraph::node_t, double>,
-    //                        std::pair<testgraph::node_t, double>>>(
-    //     "min and max keys and values of the series");
+      std::map<std::string, std::pair<testgraph::node_t, double>> extrema;
+      if (min_tup) {
+        extrema["min"] = std::make_pair(std::get<1>(min_tup.value()),
+                                        std::get<0>(min_tup.value()));
+      }
+      if (max_tup) {
+        extrema["max"] = std::make_pair(std::get<1>(max_tup.value()),
+                                        std::get<0>(max_tup.value()));
+      }
 
-    // clip.returns<std::pair<std::string, std::string>>(
-    //     "min and max keys of the series");
+      clip.to_return(extrema);
+    } else if (the_graph.has_node_series<int64_t>(tail_sel)) {
+      clip.returns<
+          std::map<std::string, std::pair<testgraph::node_t, int64_t>>>(
+          "min and max keys and values of the series");
 
-    clip.returns<std::pair<std::pair<testgraph::node_t, double>,
-                           std::pair<testgraph::node_t, double>>>(
-        "min of the series");
+      auto series = the_graph.get_node_series<int64_t>(tail_sel);
+      if (!series) {
+        std::cerr << "Node series not found" << std::endl;
+        return 1;
+      }
+      auto series_val = series.value();
+      auto [min_tup, max_tup] = series_val.extrema();
 
-    auto series = the_graph.get_node_series<double>(tail_sel);
-    if (!series) {
-      std::cerr << "Node series not found" << std::endl;
+      std::map<std::string, std::pair<testgraph::node_t, int64_t>> extrema;
+      if (min_tup) {
+        extrema["min"] = std::make_pair(std::get<1>(min_tup.value()),
+                                        std::get<0>(min_tup.value()));
+      }
+      if (max_tup) {
+        extrema["max"] = std::make_pair(std::get<1>(max_tup.value()),
+                                        std::get<0>(max_tup.value()));
+      }
+
+      clip.to_return(extrema);
+    } else {
+      std::cerr << "Node series is an invalid type" << std::endl;
       return 1;
     }
-    auto series_val = series.value();
-    auto [min_tup, max_tup] = series_val.extrema();
-
-    testgraph::node_t min_key = min_tup ? std::get<1>(min_tup.value()) : "";
-    testgraph::node_t max_key = max_tup ? std::get<1>(max_tup.value()) : "";
-
-    double min_val = min_tup ? std::get<0>(min_tup.value()) : 0.0;
-    double max_val = max_tup ? std::get<0>(max_tup.value()) : 0.0;
-
-    auto extrema = std::make_pair(std::make_pair(min_key, min_val),
-                                  std::make_pair(max_key, max_val));
-    clip.to_return<std::pair<std::pair<std::string, double>,
-                             std::pair<std::string, double>>>(extrema);
   }
 
   clip.set_state(state_name, the_graph);

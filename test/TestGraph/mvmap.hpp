@@ -95,6 +95,11 @@ class mvmap {
           itk_r(m.itk),
           series_r(ser) {}
 
+    bool is_string_v() const { return std::is_same_v<V, std::string>; }
+    bool is_double_v() const { return std::is_same_v<V, double>; }
+    bool is_int64_t_v() const { return std::is_same_v<V, int64_t>; }
+    bool is_bool_v() const { return std::is_same_v<V, bool>; }
+
     V &operator[](K k) { return series_r[get_idx(k)]; }
     const V &operator[](K k) const { return series_r[get_idx(k)]; }
 
@@ -228,27 +233,10 @@ class mvmap {
       return std::make_pair(min_opt, max_opt);
     }
 
-    std::map<V, size_t> histogram(size_t n_bins = 0) {
-      std::map<V, size_t> hist;
-      auto [min, max] = extrema();
-      if (!min.has_value() || !max.has_value()) {
-        return hist;
-      }
-      V min_val = min.value().first;
-      V max_val = max.value().first;
-      if (min_val == max_val) {
-        hist[min_val] = series_r.size();
-        return hist;
-      }
-      if (n_bins == 0) {
-        n_bins = series_r.size();
-      }
-      V bin_width = (max_val - min_val) / n_bins;
-      for_all([&hist, min_val, bin_width](auto /*unused*/, auto /*unused*/,
-                                          auto v) {
-        hist[min_val + (v - min_val) / bin_width]++;
-      });
-      return hist;
+    std::map<V, size_t> count() {
+      std::map<V, size_t> ct;
+      for_all([&ct](auto /*unused*/, auto /*unused*/, auto v) { ct[v]++; });
+      return ct;
     }
 
   };  // end of series
@@ -302,6 +290,14 @@ class mvmap {
 
   template <typename V>
   [[nodiscard]] bool has_series(const std::string &id) const {
+    // std::cerr << "has_series: " << id << std::endl;
+    // std::cerr << "V = " << typeid(V).name() << std::endl;
+    // std::cerr << "data.contains(id): " << data.contains(id) << std::endl;
+    // if (data.contains(id)) {
+    //   std::cerr << "std::holds_alternative<series<V>>(data.at(id)): "
+    //             << std::holds_alternative<series<V>>(data.at(id)) <<
+    //             std::endl;
+    // }
     return data.contains(id) && std::holds_alternative<series<V>>(data.at(id));
   }
   bool contains(const K &k) { return kti.contains(k); }
@@ -329,7 +325,7 @@ class mvmap {
                 << std::endl;
       return false;
     }
-    std::cerr << "copying series from " << from << " to " << to << std::endl;
+    // std::cerr << "copying series from " << from << " to " << to << std::endl;
     data[to] = data[from];
     return true;
   }
@@ -341,6 +337,22 @@ class mvmap {
       return std::nullopt;
     }
     return series_proxy<V>(sel, std::get<series<V>>(data[sel]), *this);
+  }
+
+  bool series_is_string(const std::string &sel) const {
+    return has_series<std::string>(sel);
+  }
+
+  bool series_is_double(const std::string &sel) const {
+    return has_series<double>(sel);
+  }
+
+  bool series_is_int64_t(const std::string &sel) const {
+    return has_series<int64_t>(sel);
+  }
+
+  bool series_is_bool(const std::string &sel) const {
+    return has_series<bool>(sel);
   }
 
   std::optional<series_proxy<variants>> get_variant_series(

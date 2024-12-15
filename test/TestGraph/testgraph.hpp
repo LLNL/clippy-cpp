@@ -19,8 +19,8 @@ using sparsevec = std::map<uint64_t, T>;
 
 // using variants = std::variant<bool, double, int64_t, std::string>;
 class testgraph {
-  using edge_mvmap = mvmap::mvmap<edge_t, bool, double, int64_t, std::string>;
-  using node_mvmap = mvmap::mvmap<node_t, bool, double, int64_t, std::string>;
+  using edge_mvmap = mvmap::mvmap<edge_t, bool, int64_t, double, std::string>;
+  using node_mvmap = mvmap::mvmap<node_t, bool, int64_t, double, std::string>;
   template <typename T>
   using edge_series_proxy = edge_mvmap::series_proxy<T>;
   template <typename T>
@@ -100,9 +100,6 @@ class testgraph {
   }
 
   bool copy_node_series(const std::string &from, const std::string &to) {
-    std::cerr << "copy_node_series: from = " << from << ", to = " << to
-              << std::endl;
-
     return node_table.copy_series(from, to);
   }
 
@@ -159,14 +156,36 @@ class testgraph {
     return false;
   }
 
+  template <typename T>
+  [[nodiscard]] bool has_series(const std::string &sel) const {
+    auto tail = sel.substr(5);
+
+    if (is_node_selector(sel)) {
+      return has_node_series<T>(tail);
+    }
+    if (is_edge_selector(sel)) {
+      return has_edge_series<T>(tail);
+    }
+    return false;
+  }
+
   // assumes sel has already been tail'ed.
   [[nodiscard]] bool has_node_series(const std::string &sel) const {
     return node_table.has_series(sel);
   }
 
+  template <typename T>
+  [[nodiscard]] bool has_node_series(const std::string &sel) const {
+    return node_table.has_series<T>(sel);
+  }
+
   // assumes sel has already been tail'ed.
   [[nodiscard]] bool has_edge_series(const std::string &sel) const {
     return edge_table.has_series(sel);
+  }
+  template <typename T>
+  [[nodiscard]] bool has_edge_series(const std::string &sel) const {
+    return edge_table.has_series<T>(sel);
   }
 
   [[nodiscard]] std::vector<node_t> out_neighbors(const node_t &node) const {
