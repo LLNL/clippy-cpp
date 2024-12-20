@@ -3,11 +3,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "clippy/clippy.hpp"
-#include "testgraph.hpp"
 #include <boost/json.hpp>
 #include <cassert>
 #include <iostream>
+
+#include "clippy/clippy.hpp"
+#include "clippy/selector.hpp"
+#include "testgraph.hpp"
 
 namespace boostjsn = boost::json;
 
@@ -17,7 +19,7 @@ static const std::string sel_state_name = "selectors";
 
 int main(int argc, char **argv) {
   clippy::clippy clip{method_name, "Adds a subselector"};
-  clip.add_required<boostjsn::object>("parent_sel", "Parent Selector");
+  clip.add_required<selector>("parent_sel", "Parent Selector");
   clip.add_required<std::string>("sub_sel", "Name of new selector");
   clip.add_optional<std::string>("desc", "Description of new selector", "");
 
@@ -30,32 +32,23 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  auto jo = clip.get<boostjsn::object>("parent_sel");
+  std::string parstr = clip.get<selector>("parent_sel");
+  auto parsel = selector{parstr};
   auto subsel = clip.get<std::string>("sub_sel");
   auto desc = clip.get<std::string>("desc");
 
-  std::string parentname;
-  try {
-    if (jo["expression_type"].as_string() != std::string("jsonlogic")) {
-      std::cerr << " NOT A THINGY " << std::endl;
-      exit(-1);
-    }
-    parentname = jo["rule"].as_object()["var"].as_string().c_str();
-  } catch (...) {
-    std::cerr << "!! ERROR !!" << std::endl;
-    exit(-1);
-  }
+  std::string fullname = parstr + "." + subsel;
 
   // std::map<std::string, std::string> selectors;
   auto the_graph = clip.get_state<testgraph::testgraph>(graph_state_name);
-  auto fullname = parentname + "." + subsel;
-  if (parentname == "edge") {
+
+  if (parsel.headeq("edge")) {
     if (the_graph.has_edge_series(subsel)) {
       std::cerr << "!! ERROR: Selector name already exists in edge table !!"
                 << std::endl;
       exit(-1);
     }
-  } else if (parentname == "node") {
+  } else if (parsel.headeq("node")) {
     if (the_graph.has_node_series(subsel)) {
       std::cerr << "!! ERROR: Selector name already exists in node table !!"
                 << std::endl;
@@ -64,7 +57,7 @@ int main(int argc, char **argv) {
   } else {
     std::cerr
         << "((!! ERROR: Parent must be either \"edge\" or \"node\" (received "
-        << parentname << ") !!)";
+        << parstr << ") !!)";
     exit(-1);
   }
 

@@ -10,6 +10,7 @@
 #include <map>
 
 #include "clippy/clippy-eval.hpp"
+#include "clippy/selector.hpp"
 #include "testgraph.hpp"
 
 static const std::string method_name = "degree";
@@ -20,7 +21,7 @@ int main(int argc, char **argv) {
   clippy::clippy clip{
       method_name,
       "Populates a column containing the degree of each node in a graph"};
-  clip.add_required<boost::json::object>(
+  clip.add_required<selector>(
       "selector",
       "Existing selector name into which the degree will be written");
   clip.add_required_state<testgraph::testgraph>(state_name,
@@ -33,21 +34,9 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  auto sel_json = clip.get<boost::json::object>("selector");
+  selector sel = clip.get<selector>("selector");
 
-  std::string sel;
-  try {
-    if (sel_json["expression_type"].as_string() != std::string("jsonlogic")) {
-      std::cerr << " NOT A THINGY " << std::endl;
-      exit(-1);
-    }
-    sel = sel_json["rule"].as_object()["var"].as_string().c_str();
-  } catch (...) {
-    std::cerr << "!! ERROR !!" << std::endl;
-    exit(-1);
-  }
-
-  if (!sel.starts_with("node.")) {
+  if (!sel.headeq("node")) {
     std::cerr << "Selector must be a node subselector" << std::endl;
     return 1;
   }
@@ -59,7 +48,7 @@ int main(int argc, char **argv) {
     std::cerr << "Selector not found" << std::endl;
     return 1;
   }
-  auto subsel = sel.substr(5);
+  auto subsel = sel.tail().value();
   if (the_graph.has_node_series(subsel)) {
     std::cerr << "Selector already populated" << std::endl;
     return 1;

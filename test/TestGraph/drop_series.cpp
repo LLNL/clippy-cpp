@@ -4,11 +4,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "clippy/clippy.hpp"
-#include "testgraph.hpp"
 #include <boost/json.hpp>
 #include <cassert>
 #include <iostream>
+
+#include "clippy/clippy.hpp"
+#include "clippy/selector.hpp"
+#include "testgraph.hpp"
 
 namespace boostjsn = boost::json;
 
@@ -18,8 +20,8 @@ static const std::string sel_state_name = "selectors";
 static const std::string sel_name = "selector";
 
 int main(int argc, char **argv) {
-  clippy::clippy clip{method_name, "Drops a subselector"};
-  clip.add_required<boostjsn::object>(sel_name, "Selector to drop");
+  clippy::clippy clip{method_name, "Drops a selector"};
+  clip.add_required<selector>(sel_name, "Selector to drop");
 
   clip.add_required_state<std::map<std::string, std::string>>(
       sel_state_name, "Internal container for pending selectors");
@@ -32,17 +34,7 @@ int main(int argc, char **argv) {
 
   auto jo = clip.get<boostjsn::object>(sel_name);
 
-  std::string sel;
-  try {
-    if (jo["expression_type"].as_string() != std::string("jsonlogic")) {
-      std::cerr << " NOT A THINGY " << std::endl;
-      exit(-1);
-    }
-    sel = jo["rule"].as_object()["var"].as_string().c_str();
-  } catch (...) {
-    std::cerr << "!! ERROR !!" << std::endl;
-    exit(-1);
-  }
+  selector sel = clip.get<selector>(sel_name);
 
   auto sel_state =
       clip.get_state<std::map<std::string, std::string>>(sel_state_name);
@@ -51,12 +43,12 @@ int main(int argc, char **argv) {
     exit(-1);
   }
   auto the_graph = clip.get_state<testgraph::testgraph>(graph_state_name);
-  auto subsel = sel.substr(5);
-  if (sel.starts_with("edge.")) {
+  auto subsel = sel.tail().value();
+  if (sel.headeq("edge")) {
     if (the_graph.has_edge_series(subsel)) {
       the_graph.drop_edge_series(sel);
     }
-  } else if (sel.starts_with("node.")) {
+  } else if (sel.headeq("node")) {
     if (the_graph.has_node_series(subsel)) {
       the_graph.drop_node_series(subsel);
     }
