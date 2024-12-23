@@ -18,7 +18,6 @@ using index = uint64_t;
 class locator {
   static const index INVALID_LOC = std::numeric_limits<index>::max();
   index loc;
-
   locator(index loc) : loc(loc) {};
 
  public:
@@ -280,8 +279,12 @@ class mvmap {
     return true;
   }
 
-  [[nodiscard]] std::vector<std::string> list_series() const {
-    return std::views::keys(data);
+  [[nodiscard]] std::vector<std::pair<std::string, std::string>> list_series() {
+    std::vector<std::pair<std::string, std::string>> ser_pairs;
+    for (auto el : series_desc) {
+      ser_pairs.push_back(el);
+    }
+    return ser_pairs;
   }
 
   [[nodiscard]] bool has_series(const std::string &id) const {
@@ -319,7 +322,8 @@ class mvmap {
   // copies an existing column (series) to a new (unmanifested) column and
   // returns true. If the new column already exists, or if the existing column
   // doesn't, return false.
-  bool copy_series(const std::string &from, const std::string &to) {
+  bool copy_series(const std::string &from, const std::string &to,
+                   const std::optional<std::string> &desc = std::nullopt) {
     if (has_series(to) || !has_series(from)) {
       std::cerr << "copy_series failed from " << from << " to " << to
                 << std::endl;
@@ -327,6 +331,7 @@ class mvmap {
     }
     // std::cerr << "copying series from " << from << " to " << to << std::endl;
     data[to] = data[from];
+    series_desc[to] = desc.has_value() ? desc.value() : series_desc[from];
     return true;
   }
 

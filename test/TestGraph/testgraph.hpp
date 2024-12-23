@@ -95,12 +95,14 @@ class testgraph {
     return edge_table.get_series<T>(sel);
   }
 
-  bool copy_edge_series(const std::string &from, const std::string &to) {
-    return edge_table.copy_series(from, to);
+  bool copy_edge_series(const std::string &from, const std::string &to,
+                        const std::optional<std::string> &desc = std::nullopt) {
+    return edge_table.copy_series(from, to, desc);
   }
 
-  bool copy_node_series(const std::string &from, const std::string &to) {
-    return node_table.copy_series(from, to);
+  bool copy_node_series(const std::string &from, const std::string &to,
+                        const std::optional<std::string> &desc = std::nullopt) {
+    return node_table.copy_series(from, to, desc);
   }
 
   template <typename T>
