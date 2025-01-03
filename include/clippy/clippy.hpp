@@ -59,8 +59,8 @@ boost::json::value asContainer(boost::json::value val, bool requiresContainer) {
   res.emplace_back(std::move(val));
   return res;
 }
-
-std::string clippyLogFile{"clippy.log"};
+1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890 std::
+    string clippyLogFile{"clippy.log"};
 
 #if WITH_YGM
 std::string userInputString;

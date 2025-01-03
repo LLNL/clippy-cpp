@@ -47,6 +47,13 @@ class mvmap {
   using idx_to_key = std::map<index, K>;
   using variants = std::variant<Vs...>;
 
+  template <typename V>
+  static void print_series(const series<V> &s) {
+    for (auto el : s) {
+      std::cout << el.first << " -> " << el.second << std::endl;
+    }
+  }
+
   // A locator is an opaque handle to a key in a series.
 
   idx_to_key itk;
@@ -238,6 +245,30 @@ class mvmap {
       return ct;
     }
 
+    void print() const {
+      std::cout << "id: " << id << ", ";
+      std::cout << "desc: " << desc << ", ";
+      std::string dtype = "unknown";
+      if (is_string_v()) {
+        dtype = "string";
+      } else if (is_double_v()) {
+        dtype = "double";
+      } else if (is_int64_t_v()) {
+        dtype = "int64_t";
+      } else if (is_bool_v()) {
+        dtype = "bool";
+      }
+      std::cout << "dtype: " << dtype << ", ";
+      // std::cout << "kti_r.size(): " << kti_r.size() << std::endl;
+      // std::cout << "itk_r.size(): " << itk_r.size() << std::endl;
+      std::cout << series_r.size() << " entries" << std::endl;
+      // std::cout << "elements: " << std::endl;
+      for (auto el : series_r) {
+        std::cout << "  " << itk_r[el.first] << " -> " << el.second
+                  << std::endl;
+      }
+    }
+
   };  // end of series
   /////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////////
@@ -341,7 +372,8 @@ class mvmap {
       // series doesn't exist or is of the wrong type.
       return std::nullopt;
     }
-    return series_proxy<V>(sel, std::get<series<V>>(data[sel]), *this);
+    return series_proxy<V>(sel, this->series_desc.at(sel),
+                           std::get<series<V>>(data[sel]), *this);
   }
 
   bool series_is_string(const std::string &sel) const {
@@ -404,6 +436,26 @@ class mvmap {
       for (auto &id_ser : data) {
         std::visit([&idx](auto &ser) { ser.erase(idx); }, id_ser.second);
       }
+    }
+  }
+
+  void print() {
+    std::cout << "mvmap with " << data.size() << " series: " << std::endl;
+    for (auto &el : data) {
+      std::cout << "series " << el.first << ":" << std::endl;
+      std::visit(
+          [&el, this](auto &ser) {
+            using T = std::decay_t<decltype(ser.begin()->second)>;
+            auto sproxy = get_series<std::decay_t<T>>(el.first)
+                              .value();  // this is a series_proxy
+            sproxy.print();
+          },
+          el.second);
+
+      // std::cout << "    second: " << el.second << std::endl;
+      // auto foo = get_variant_series(el.first).value();
+      // foo.visit([](auto &ser) { print_series(ser); });
+      // print_series(el.second);
     }
   }
 };
