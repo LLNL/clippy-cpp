@@ -29,6 +29,14 @@ class locator {
                             const boost::json::value &v);
   locator() : loc(INVALID_LOC) {};
   [[nodiscard]] bool is_valid() const { return loc != INVALID_LOC; }
+
+  void print() const {
+    if (is_valid()) {
+      std::cout << "locator: " << loc << std::endl;
+    } else {
+      std::cout << "locator: invalid" << std::endl;
+    }
+  }
 };
 void tag_invoke(boost::json::value_from_tag /*unused*/, boost::json::value &v,
                 locator l) {
@@ -245,7 +253,7 @@ class mvmap {
       return ct;
     }
 
-    void print() const {
+    void print() {
       std::cout << "id: " << id << ", ";
       std::cout << "desc: " << desc << ", ";
       std::string dtype = "unknown";
@@ -337,6 +345,33 @@ class mvmap {
   bool contains(const K &k) { return kti.contains(k); }
   auto keys() const { return std::views::keys(kti); }
 
+  void add_row(const K &key,
+               const std::map<std::string, std::variant<Vs...>> &row) {
+    auto loc = locator(kti.size());
+    for (const auto &el : row) {
+      if (!has_series(el.first)) {
+        continue;
+      }
+      std::visit(
+          [&el, &key, this](auto &ser) {
+            using T = std::decay_t<decltype(ser.begin()->second)>;
+            auto sproxy = get_series<std::decay_t<T>>(el.first)
+                              .value();  // this is a series_proxy
+            sproxy[key] = std::get<T>(el.second);
+          },
+          data[el.first]);
+    }
+  }
+
+  void rem_row(const K &key) {
+    for (auto &el : data) {
+      auto index = kti[key];
+      std::visit([&key, this](auto &ser) { ser.erase(index); }, el.second);
+    }
+
+    kti.erase(key);
+    itk.erase(index);
+  }
   // adds a new column (series) to the mvmap and returns true. If already
   // exists, return false
   template <typename V>
@@ -392,13 +427,16 @@ class mvmap {
     return has_series<bool>(sel);
   }
 
-  std::optional<series_proxy<variants>> get_variant_series(
-      const std::string &sel) {
-    if (!has_series(sel)) {
-      return std::nullopt;
-    }
-    return series_proxy<variants>(sel, data[sel], *this);
-  }
+  // std::optional<series_proxy<variants>> get_variant_series(
+  //     const std::string &sel) {
+  //   if (!has_series(sel)) {
+  //     return std::nullopt;
+  //   }
+
+  //   using vtype = decltype(data[sel]);
+  //   return series_proxy<vtype>(sel, this->series_desc.at(sel), data.at(sel),
+  //                              this);
+  // }
 
   void drop_series(const std::string &sel) {
     if (!has_series(sel)) {
@@ -410,6 +448,21 @@ class mvmap {
 
   mvmap::variants get_as_variant(const std::string &sel, const locator &loc) {
     return data[sel][loc.loc];
+  }
+
+  mvmap::variants get_as_variant(const std::string &sel, const K &key) {
+    auto col = data[sel];
+    mvmap::variants val;
+    std::visit(
+        [&val, sel, key, this](auto &ser) {
+          using T = std::decay_t<decltype(ser.begin()->second)>;
+          auto sproxy = get_series<std::decay_t<T>>(sel)
+                            .value();  // this is a series_proxy
+          val = sproxy[key];
+        },
+        col);
+
+    return val;
   }
 
   // F is a function that takes a key and a locator.
