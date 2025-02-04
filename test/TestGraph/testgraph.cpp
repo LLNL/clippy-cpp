@@ -42,4 +42,7 @@ int main() {
   std::cout << "here it is: " << str << "\n";
 
   auto g2 = boost::json::value_to<testgraph::testgraph>(val);
+  auto e2 = weightref.value().extrema();
+  std::cout << "extrema: " << std::get<0>(e2.first.value()) << ", "
+            << std::get<0>(e2.second.value()) << "\n";
 }

@@ -15,6 +15,7 @@
 
 namespace mvmap {
 using index = uint64_t;
+
 class locator {
   static const index INVALID_LOC = std::numeric_limits<index>::max();
   index loc;
@@ -73,8 +74,8 @@ class mvmap {
   // A series_proxy is a reference to a series in an mvmap.
   template <typename V>
   class series_proxy {
-    std::string id;
-    std::string_view desc;
+    std::string m_id;
+    std::string m_desc;
     key_to_idx &kti_r;
     idx_to_key &itk_r;
     series<V> &series_r;
@@ -99,12 +100,12 @@ class mvmap {
 
    public:
     series_proxy(std::string id, series<V> &ser, mvmap<K, Vs...> &m)
-        : id(std::move(id)), kti_r(m.kti), itk_r(m.itk), series_r(ser) {}
+        : m_id(std::move(id)), kti_r(m.kti), itk_r(m.itk), series_r(ser) {}
 
     series_proxy(std::string id, const std::string &desc, series<V> &ser,
                  mvmap<K, Vs...> &m)
-        : id(std::move(id)),
-          desc(desc),
+        : m_id(std::move(id)),
+          m_desc(desc),
           kti_r(m.kti),
           itk_r(m.itk),
           series_r(ser) {}
@@ -114,6 +115,8 @@ class mvmap {
     bool is_int64_t_v() const { return std::is_same_v<V, int64_t>; }
     bool is_bool_v() const { return std::is_same_v<V, bool>; }
 
+    std::string id() const { return m_id; }
+    std::string desc() const { return m_desc; }
     V &operator[](K k) { return series_r[get_idx(k)]; }
     const V &operator[](K k) const { return series_r[get_idx(k)]; }
 
@@ -122,28 +125,28 @@ class mvmap {
     const V &operator[](locator l) const { return series_r[l.loc]; }
 
     std::optional<std::reference_wrapper<V>> at(locator l) {
-      if (!has_key_at_index(l)) {
-        return {};
+      if (!has_key_at_index(l) || !series_r.contains(l.loc)) {
+        return std::nullopt;
       }
       return series_r[l.loc];
     };
     std::optional<std::reference_wrapper<const V>> at(locator l) const {
-      if (!has_key_at_index(l)) {
-        return {};
+      if (!has_key_at_index(l) || !series_r.contains(l.loc)) {
+        return std::nullopt;
       }
       return series_r[l.loc];
     };
 
     std::optional<std::reference_wrapper<V>> at(K k) {
-      if (!has_idx_at_key(k)) {
-        return {};
+      if (!has_idx_at_key(k) || !series_r.contains(get_idx(k))) {
+        return std::nullopt;
       }
       return series_r[get_idx(k)];
     };
 
     std::optional<std::reference_wrapper<const V>> at(K k) const {
-      if (!has_idx_at_key(k)) {
-        return {};
+      if (!has_idx_at_key(k) || !series_r.contains(get_idx(k))) {
+        return std::nullopt;
       }
       return series_r[get_idx(k)];
     };
@@ -254,8 +257,8 @@ class mvmap {
     }
 
     void print() {
-      std::cout << "id: " << id << ", ";
-      std::cout << "desc: " << desc << ", ";
+      std::cout << "id: " << m_id << ", ";
+      std::cout << "desc: " << m_desc << ", ";
       std::string dtype = "unknown";
       if (is_string_v()) {
         dtype = "string";
@@ -354,19 +357,22 @@ class mvmap {
       }
       std::visit(
           [&el, &key, this](auto &ser) {
-            using T = std::decay_t<decltype(ser.begin()->second)>;
-            auto sproxy = get_series<std::decay_t<T>>(el.first)
+            std::cout << "adding to series " << el.first << std::endl;
+            using variant_type = std::decay_t<decltype(ser.begin()->second)>;
+            auto sproxy = get_series<std::decay_t<variant_type>>(el.first)
                               .value();  // this is a series_proxy
-            sproxy[key] = std::get<T>(el.second);
+            // TODO: make sure this actually sets itk and kti correctly.
+            sproxy[key] = std::get<variant_type>(el.second);
           },
           data[el.first]);
     }
   }
 
   void rem_row(const K &key) {
+    auto index = kti[key];
     for (auto &el : data) {
-      auto index = kti[key];
-      std::visit([&key, this](auto &ser) { ser.erase(index); }, el.second);
+      std::visit([&key, &index, this](auto &ser) { ser.erase(index); },
+                 el.second);
     }
 
     kti.erase(key);
@@ -407,8 +413,10 @@ class mvmap {
       // series doesn't exist or is of the wrong type.
       return std::nullopt;
     }
-    return series_proxy<V>(sel, this->series_desc.at(sel),
-                           std::get<series<V>>(data[sel]), *this);
+    // return series_proxy<V>(sel, this->series_desc.at(sel),
+    //                        std::get<series<V>>(data[sel]), *this);
+    auto foo = series_desc[sel];
+    return series_proxy<V>(sel, foo, std::get<series<V>>(data[sel]), *this);
   }
 
   bool series_is_string(const std::string &sel) const {
@@ -434,7 +442,8 @@ class mvmap {
   //   }
 
   //   using vtype = decltype(data[sel]);
-  //   return series_proxy<vtype>(sel, this->series_desc.at(sel), data.at(sel),
+  //   return series_proxy<vtype>(sel, this->series_desc.at(sel),
+  //   data.at(sel),
   //                              this);
   // }
 
@@ -446,22 +455,34 @@ class mvmap {
     series_desc.erase(sel);
   }
 
-  mvmap::variants get_as_variant(const std::string &sel, const locator &loc) {
-    return data[sel][loc.loc];
+  std::optional<mvmap::variants> get_as_variant(const std::string &sel,
+                                                const locator &loc) {
+    auto col = data[sel];
+    std::optional<mvmap::variants> val;
+    std::visit(
+        [&val, sel, loc, this](auto &ser) {
+          using T = std::decay_t<decltype(ser.begin()->second)>;
+          auto sproxy = get_series<std::decay_t<T>>(sel)
+                            .value();  // this is a series_proxy
+          val = sproxy.at(loc);
+        },
+        col);
+    return val;
+    // return data[sel][loc.loc];
   }
 
-  mvmap::variants get_as_variant(const std::string &sel, const K &key) {
+  std::optional<mvmap::variants> get_as_variant(const std::string &sel,
+                                                const K &key) {
     auto col = data[sel];
-    mvmap::variants val;
+    std::optional<mvmap::variants> val;
     std::visit(
         [&val, sel, key, this](auto &ser) {
           using T = std::decay_t<decltype(ser.begin()->second)>;
           auto sproxy = get_series<std::decay_t<T>>(sel)
                             .value();  // this is a series_proxy
-          val = sproxy[key];
+          val = sproxy.at(key);
         },
         col);
-
     return val;
   }
 
@@ -510,6 +531,64 @@ class mvmap {
       // foo.visit([](auto &ser) { print_series(ser); });
       // print_series(el.second);
     }
+  }
+
+  void print_cols(const std::vector<std::string> &cols) {
+    for_all([this, &cols](auto key, auto loc) {
+      std::cout << key << " -> " << loc.loc;
+      for (auto &col : cols) {
+        auto v = get_as_variant(col, loc);
+        if (v.has_value()) {
+          std::cout << "at col " << col << ", v has a value\n";
+          std::visit(
+              [&col](auto &&arg) {
+                using T = std::decay_t<decltype(arg)>;
+                if constexpr (std::is_same_v<T, std::string>) {
+                  std::cout << " (str) " << col << ": " << arg;
+                } else if constexpr (std::is_same_v<T, double>) {
+                  std::cout << " (dbl) " << col << ": " << arg;
+                } else if constexpr (std::is_same_v<T, int64_t>) {
+                  std::cout << " (int) " << col << ": " << arg;
+                } else if constexpr (std::is_same_v<T, bool>) {
+                  std::cout << " (bool) " << col << ": " << arg;
+                }
+              },
+              v.value());
+        }
+      }
+      std::cout << std::endl;
+    });
+  }
+
+  std::map<std::string, mvmap::variants> get_series_vals_at(
+      const K &key, const std::vector<std::string> &cols) {
+    std::vector<std::variant<series_proxy<Vs>...>> proxies;
+
+    for (auto &col : cols) {
+      if (has_series(col)) {
+        std::visit(
+            [this, &col, &proxies](auto &coldata) {
+              using T = std::decay_t<decltype(coldata)>::mapped_type;
+              auto sproxy =
+                  get_series<T>(col).value();  // this is a series_proxy
+              proxies.push_back(sproxy);
+            },
+            data[col]);
+      }
+    }
+
+    std::map<std::string, mvmap::variants> row;
+    for (auto &sproxy : proxies) {
+      std::visit(
+          [&row, &key](auto &&arg) {
+            auto v = arg.at(key);
+            if (v.has_value()) {
+              row[arg.id()] = arg[key];
+            }
+          },
+          sproxy);
+    }
+    return row;
   }
 };
 };  // namespace mvmap

@@ -128,7 +128,6 @@ int main(int argc, char **argv) {
 
       auto series = the_graph.get_node_series<int64_t>(tail_sel);
       if (!series) {
-        std::cerr << "Node series not found" << std::endl;
         return 1;
       }
       auto series_val = series.value();

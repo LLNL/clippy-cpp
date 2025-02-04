@@ -19,9 +19,9 @@ endfunction()
 
 
 
-# add_subdirectory(TestBag)
-# add_subdirectory(TestSet)
-# add_subdirectory(TestFunctions)
-# add_subdirectory(TestSelector)
-# add_subdirectory(TestGraph)
+add_subdirectory(TestBag)
+add_subdirectory(TestSet)
+add_subdirectory(TestFunctions)
+add_subdirectory(TestSelector)
+add_subdirectory(TestGraph)
 add_subdirectory(TestDF)
