@@ -13,6 +13,12 @@
 #include <variant>
 #include <vector>
 
+template <typename T1, typename T2>
+std::ostream &operator<<(std::ostream &os, const std::pair<T1, T2> &p) {
+  os << "(" << p.first << ", " << p.second << ")";
+  return os;
+}
+
 namespace mvmap {
 using index = uint64_t;
 
@@ -24,6 +30,14 @@ class locator {
  public:
   template <typename K, typename... Vs>
   friend class mvmap;
+  friend std::ostream &operator<<(std::ostream &os, const locator &l) {
+    if (l.is_valid()) {
+      os << "locator: " << l.loc;
+    } else {
+      os << "locator: invalid";
+    }
+    return os;
+  }
   friend void tag_invoke(boost::json::value_from_tag /*unused*/,
                          boost::json::value &v, locator l);
   friend locator tag_invoke(boost::json::value_to_tag<locator> /*unused*/,
@@ -533,31 +547,32 @@ class mvmap {
     }
   }
 
-  void print_cols(const std::vector<std::string> &cols) {
-    for_all([this, &cols](auto key, auto loc) {
-      std::cout << key << " -> " << loc.loc;
+  std::string str_cols(const std::vector<std::string> &cols) {
+    std::stringstream sstr;
+    for_all([this, &cols, &sstr](auto key, auto loc) {
+      sstr << key << "@" << loc.loc;
       for (auto &col : cols) {
         auto v = get_as_variant(col, loc);
         if (v.has_value()) {
-          std::cout << "at col " << col << ", v has a value\n";
           std::visit(
-              [&col](auto &&arg) {
+              [&col, &sstr](auto &&arg) {
                 using T = std::decay_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, std::string>) {
-                  std::cout << " (str) " << col << ": " << arg;
+                  sstr << " (str) " << col << ": " << arg;
                 } else if constexpr (std::is_same_v<T, double>) {
-                  std::cout << " (dbl) " << col << ": " << arg;
+                  sstr << " (dbl) " << col << ": " << arg;
                 } else if constexpr (std::is_same_v<T, int64_t>) {
-                  std::cout << " (int) " << col << ": " << arg;
+                  sstr << " (int) " << col << ": " << arg;
                 } else if constexpr (std::is_same_v<T, bool>) {
-                  std::cout << " (bool) " << col << ": " << arg;
+                  sstr << " (bool) " << col << ": " << arg;
                 }
               },
               v.value());
         }
       }
-      std::cout << std::endl;
+      sstr << std::endl;
     });
+    return sstr.str();
   }
 
   std::map<std::string, mvmap::variants> get_series_vals_at(

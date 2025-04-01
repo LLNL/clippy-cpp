@@ -168,7 +168,11 @@ class testdf {
     for (const auto &k : ks) {
       std::cout << k << ",";
       for (auto col = cols.begin(); col != cols.end(); ++col) {
-        auto d = data.get_as_variant(col->first, k);
+        auto d_opt = data.get_as_variant(col->first, k);
+        if (!d_opt.has_value()) {
+          continue;
+        }
+        auto d = d_opt.value();
         bool last = col == std::prev(cols.end());
         std::visit(
             [&d, last](auto &&arg) {

@@ -17,6 +17,8 @@ using edge_t = std::pair<node_t, node_t>;
 template <typename T>
 using sparsevec = std::map<uint64_t, T>;
 
+enum series_type { ser_bool, ser_int64, ser_double, ser_string, ser_invalid };
+
 // using variants = std::variant<bool, double, int64_t, std::string>;
 class testgraph {
   using edge_mvmap = mvmap::mvmap<edge_t, bool, int64_t, double, std::string>;
@@ -29,6 +31,15 @@ class testgraph {
   edge_mvmap edge_table;
 
  public:
+  const mvmap::mvmap<node_t, bool, int64_t, double, std::string> &nodemap()
+      const {
+    return node_table;
+  }
+
+  const mvmap::mvmap<edge_t, bool, int64_t, double, std::string> &edgemap()
+      const {
+    return edge_table;
+  }
   static inline bool is_edge_selector(const std::string &sel) {
     return sel.starts_with("edge.");
   }
@@ -215,6 +226,16 @@ class testgraph {
   }
   [[nodiscard]] size_t out_degree(const node_t &node) const {
     return out_neighbors(node).size();
+  }
+
+  std::string str_edge_col(const std::string &col) {
+    std::vector<std::string> cols{col};
+    return edge_table.str_cols(cols);
+  }
+
+  std::string str_node_col(const std::string &col) {
+    std::vector<std::string> cols{col};
+    return node_table.str_cols(cols);
   }
 
 };  // class testgraph
