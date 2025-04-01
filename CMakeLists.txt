@@ -72,19 +72,18 @@ endif()
 
 #
 # Boost
-include(setup_boost)
-prepare_fetchcontent_boost()
-set(FETCHCONTENT_QUIET FALSE)
+set(BOOST_URL 
+    "https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.gz" 
+    CACHE STRING "URL to fetch Boost tarball")
+
+#
+# Boost
 FetchContent_Declare(
-        Boost
-        GIT_REPOSITORY https://github.com/boostorg/boost.git
-        GIT_TAG boost-1.83.0
-        GIT_SUBMODULES ${BOOST_REQD_SUBMODULES}
-        GIT_PROGRESS TRUE
-        CONFIGURE_COMMAND ""  # tell CMake it's not a cmake project
+    Boost 
+    URL ${BOOST_URL}
 )
+set(BOOST_INCLUDE_LIBRARIES json)
 FetchContent_MakeAvailable(Boost)
-get_boost_include_dirs()
 
 
 ### Require out-of-source builds
