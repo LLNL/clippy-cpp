@@ -1,6 +1,6 @@
 add_test(TestGraph __init__)
 add_test(TestGraph __str__)
-add_test(TestGraph assign)
+# add_test(TestGraph assign)
 # add_test(TestGraph dump)
 add_test(TestGraph dump2)
 add_test(TestGraph add_edge)

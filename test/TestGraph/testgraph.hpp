@@ -19,7 +19,7 @@ using sparsevec = std::map<uint64_t, T>;
 
 enum series_type { ser_bool, ser_int64, ser_double, ser_string, ser_invalid };
 
-// using variants = std::variant<bool, double, int64_t, std::string>;
+using variants = std::variant<bool, double, int64_t, std::string>;
 class testgraph {
   using edge_mvmap = mvmap::mvmap<edge_t, bool, int64_t, double, std::string>;
   using node_mvmap = mvmap::mvmap<node_t, bool, int64_t, double, std::string>;

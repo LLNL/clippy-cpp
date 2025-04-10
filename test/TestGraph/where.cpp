@@ -51,7 +51,7 @@ auto parse_where_expression(M& mvmap_, boost::json::object& expression,
                           << "] = " << v << " at loc " << loc << "."
                           << std::endl;
               },
-              val.value());
+              *val);
         } else {
           std::cerr << "    apply_jl: no value for " << var_sel << std::endl;
           submission_data[var_str] = boost::json::value();
