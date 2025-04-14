@@ -85,6 +85,13 @@ FetchContent_Declare(
 set(BOOST_INCLUDE_LIBRARIES json)
 FetchContent_MakeAvailable(Boost)
 
+#
+# JSONLogic
+FetchContent_Declare(jsonlogic
+    GIT_REPOSITORY https://github.com/LLNL/jsonlogic.git
+    GIT_TAG master
+)
+FetchContent_MakeAvailable(jsonlogic)
 
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
