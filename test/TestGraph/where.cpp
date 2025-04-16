@@ -18,7 +18,7 @@ auto parse_where_expression(M& mvmap_, boost::json::object& expression,
 
   // boost::json::object submission_data{};
   auto [_a /*unused*/, vars, _b /*unused*/] =
-      json_logic::translateNode(exp2["rule"]);
+      jsonlogic::translateNode(exp2["rule"]);
 
   std::cerr << "parse_where: # of vars: " << vars.size() << std::endl;
   for (const auto& var : vars) {
@@ -62,10 +62,10 @@ auto parse_where_expression(M& mvmap_, boost::json::object& expression,
     }
     std::cerr << "    apply_jl: submission_data: " << submission_data
               << std::endl;
-    json_logic::ValueExpr res =
-        json_logic::apply(expression["rule"], submission_data);
+    jsonlogic::any_expr res =
+        jsonlogic::apply(expression["rule"], submission_data);
     std::cerr << "    apply_jl: res: " << res << std::endl;
-    return json_logic::unpackValue<bool>(res);
+    return jsonlogic::unpack_value<bool>(res);
   };
 
   return apply_jl;
@@ -78,7 +78,7 @@ std::vector<testgraph::node_t> where_nodes(const testgraph::testgraph& g,
 
   std::cerr << "  where: expression: " << expression << std::endl;
   // auto [_a /*unused*/, vars, _b /*unused*/] =
-  //     json_logic::translateNode(exp2["rule"]);
+  //     jsonlogic::translateNode(exp2["rule"]);
 
   // auto nodemap = g.nodemap();
   // boost::json::object submission_data{};
@@ -115,10 +115,10 @@ std::vector<testgraph::node_t> where_nodes(const testgraph::testgraph& g,
   //     }
   //   }
 
-  //   json_logic::ValueExpr res =
-  //       json_logic::apply(expression["rule"], submission_data);
+  //   jsonlogic::any_expr res =
+  //       jsonlogic::apply(expression["rule"], submission_data);
   //   std::cerr << "    apply_jl: res: " << res << std::endl;
-  //   return json_logic::unpackValue<bool>(res);
+  //   return jsonlogic::unpack_value<bool>(res);
   // };
 
   auto nodemap = g.nodemap();

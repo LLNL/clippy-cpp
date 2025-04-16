@@ -82,12 +82,12 @@ struct Expr {
 // foundation classes
 // \{
 
-using AnyExpr = std::unique_ptr<Expr>;
-using ValueExpr =
+using any_expr = std::unique_ptr<Expr>;
+using any_expr =
     std::unique_ptr<Expr>;  // \todo consider std::unique_ptr<Value>
 
-struct Operator : Expr, private std::vector<AnyExpr> {
-  using container_type = std::vector<AnyExpr>;
+struct Operator : Expr, private std::vector<any_expr> {
+  using container_type = std::vector<any_expr>;
 
   using container_type::at;
   using container_type::back;
@@ -380,8 +380,8 @@ struct StringVal : ValueT<json::string> {
   void accept(Visitor&) final;
 };
 
-struct ObjectVal : Expr, private std::map<json::string, AnyExpr> {
-  using base = std::map<json::string, AnyExpr>;
+struct ObjectVal : Expr, private std::map<json::string, any_expr> {
+  using base = std::map<json::string, any_expr>;
   using base::base;
 
   using base::begin;
@@ -673,7 +673,7 @@ struct VarMap {
 
 void VarMap::insert(Var& var) {
   try {
-    AnyExpr& arg = var.back();
+    any_expr& arg = var.back();
     StringVal& str = down_cast<StringVal>(*arg);
     const bool comp = (str.value().find('.') != json::string::npos &&
                        str.value().find('[') != json::string::npos);
@@ -754,7 +754,7 @@ DispatchTable::const_iterator lookup(const DispatchTable& m,
   return m.find(op.begin()->key());
 }
 
-AnyExpr translateNode_internal(JsonExpr& n, VarMap& varmap) {
+any_expr translateNode_internal(JsonExpr& n, VarMap& varmap) {
   static const DispatchTable dt = {
       {"==", &mkOperator<Eq>},
       {"===", &mkOperator<StrictEq>},
@@ -852,13 +852,13 @@ AnyExpr translateNode_internal(JsonExpr& n, VarMap& varmap) {
       unsupported();
   }
 
-  return AnyExpr(res);
+  return any_expr(res);
 }
 
-inline std::tuple<AnyExpr, std::vector<json::string>, bool> translateNode(
+inline std::tuple<any_expr, std::vector<json::string>, bool> translateNode(
     JsonExpr& n) {
   VarMap varmap;
-  AnyExpr node = translateNode_internal(n, varmap);
+  any_expr node = translateNode_internal(n, varmap);
   bool hasComputedVariables = varmap.hasComputedVariables();
 
   return {std::move(node), varmap.toVector(), hasComputedVariables};
@@ -889,72 +889,72 @@ Operator::container_type translateChildren(JsonExpr& n, VarMap& varmap) {
 }
 }  // namespace
 
-std::ostream& operator<<(std::ostream& os, ValueExpr& n);
+std::ostream& operator<<(std::ostream& os, any_expr& n);
 
 //
 // to value conversion
 
-ValueExpr toValueExpr(const json::value& n);
+any_expr toany_expr(const json::value& n);
 
-ValueExpr toValueExpr(std::nullptr_t) { return ValueExpr(new NullVal); }
-ValueExpr toValueExpr(bool val) { return ValueExpr(new BoolVal(val)); }
-ValueExpr toValueExpr(std::int64_t val) { return ValueExpr(new IntVal(val)); }
-ValueExpr toValueExpr(std::uint64_t val) { return ValueExpr(new UintVal(val)); }
-ValueExpr toValueExpr(double val) { return ValueExpr(new DoubleVal(val)); }
-ValueExpr toValueExpr(json::string val) {
-  return ValueExpr(new StringVal(std::move(val)));
+any_expr toany_expr(std::nullptr_t) { return any_expr(new NullVal); }
+any_expr toany_expr(bool val) { return any_expr(new BoolVal(val)); }
+any_expr toany_expr(std::int64_t val) { return any_expr(new IntVal(val)); }
+any_expr toany_expr(std::uint64_t val) { return any_expr(new UintVal(val)); }
+any_expr toany_expr(double val) { return any_expr(new DoubleVal(val)); }
+any_expr toany_expr(json::string val) {
+  return any_expr(new StringVal(std::move(val)));
 }
 
-ValueExpr toValueExpr(const json::array& val) {
+any_expr toany_expr(const json::array& val) {
   Operator::container_type elems;
 
   std::transform(
       val.begin(), val.end(), std::back_inserter(elems),
-      [](const json::value& el) -> ValueExpr { return toValueExpr(el); });
+      [](const json::value& el) -> any_expr { return toany_expr(el); });
 
   Array& arr = deref(new Array);
 
   arr.set_operands(std::move(elems));
-  return ValueExpr(&arr);
+  return any_expr(&arr);
 }
 
 CXX_MAYBE_UNUSED
-ValueExpr toValueExpr(const json::value& n) {
-  ValueExpr res;
+any_expr toany_expr(const json::value& n) {
+  any_expr res;
 
   switch (n.kind()) {
     case json::kind::string: {
-      res = toValueExpr(n.get_string());
+      res = toany_expr(n.get_string());
       break;
     }
 
     case json::kind::int64: {
-      res = toValueExpr(n.get_int64());
+      res = toany_expr(n.get_int64());
       break;
     }
 
     case json::kind::uint64: {
-      res = toValueExpr(n.get_uint64());
+      res = toany_expr(n.get_uint64());
       break;
     }
 
     case json::kind::double_: {
-      res = toValueExpr(n.get_double());
+      res = toany_expr(n.get_double());
       break;
     }
 
     case json::kind::bool_: {
-      res = toValueExpr(n.get_bool());
+      res = toany_expr(n.get_bool());
       break;
     }
 
     case json::kind::null: {
-      res = toValueExpr(nullptr);
+      res = toany_expr(nullptr);
       break;
     }
 
     case json::kind::array: {
-      res = toValueExpr(n.get_array());
+      res = toany_expr(n.get_array());
       break;
     }
 
@@ -1391,7 +1391,7 @@ struct ArithmeticOperator : NumericBinaryOperatorBase {
     definedForArray = false
   };
 
-  using result_type = ValueExpr;
+  using result_type = any_expr;
 
   using NumericBinaryOperatorBase::coerce;
 
@@ -1452,7 +1452,7 @@ struct StringOperator {
     definedForArray = false
   };
 
-  using result_type = ValueExpr;
+  using result_type = any_expr;
 
   std::tuple<json::string, json::string> coerce(json::string* lv,
                                                 json::string* rv) {
@@ -1470,16 +1470,16 @@ struct ArrayOperator {
     definedForArray = true
   };
 
-  using result_type = ValueExpr;
+  using result_type = any_expr;
 
   std::tuple<Array*, Array*> coerce(Array* lv, Array* rv) { return {lv, rv}; }
 };
 
-AnyExpr convert(AnyExpr val, ...) { return val; }
+any_expr convert(any_expr val, ...) { return val; }
 
-AnyExpr convert(AnyExpr val, const ArithmeticOperator&) {
+any_expr convert(any_expr val, const ArithmeticOperator&) {
   struct ArithmeticConverter : FwdVisitor {
-    explicit ArithmeticConverter(AnyExpr val) : res(std::move(val)) {}
+    explicit ArithmeticConverter(any_expr val) : res(std::move(val)) {}
 
     void visit(Expr&) final { typeError(); }
 
@@ -1495,18 +1495,18 @@ AnyExpr convert(AnyExpr val, const ArithmeticOperator&) {
       std::int64_t ii = toConcreteValue(el.value(), std::int64_t{});
       // uint?
 
-      res = (dd != ii) ? toValueExpr(dd) : toValueExpr(ii);
+      res = (dd != ii) ? toany_expr(dd) : toany_expr(ii);
     }
 
     void visit(BoolVal&) final {
       // \todo correct?
-      res = toValueExpr(nullptr);
+      res = toany_expr(nullptr);
     }
 
-    AnyExpr result() && { return std::move(res); }
+    any_expr result() && { return std::move(res); }
 
    private:
-    AnyExpr res;
+    any_expr res;
   };
 
   Expr* node = val.get();
@@ -1516,9 +1516,9 @@ AnyExpr convert(AnyExpr val, const ArithmeticOperator&) {
   return std::move(conv).result();
 }
 
-AnyExpr convert(AnyExpr val, const IntegerArithmeticOperator&) {
+any_expr convert(any_expr val, const IntegerArithmeticOperator&) {
   struct IntegerArithmeticConverter : FwdVisitor {
-    explicit IntegerArithmeticConverter(AnyExpr val) : res(std::move(val)) {}
+    explicit IntegerArithmeticConverter(any_expr val) : res(std::move(val)) {}
 
     void visit(Expr&) final { typeError(); }
 
@@ -1528,23 +1528,23 @@ AnyExpr convert(AnyExpr val, const IntegerArithmeticOperator&) {
 
     // need to convert values
     void visit(StringVal& el) final {
-      res = toValueExpr(toConcreteValue(el.value(), std::int64_t{}));
+      res = toany_expr(toConcreteValue(el.value(), std::int64_t{}));
     }
 
     void visit(BoolVal& el) final {
-      res = toValueExpr(toConcreteValue(el.value(), std::int64_t{}));
+      res = toany_expr(toConcreteValue(el.value(), std::int64_t{}));
     }
 
     void visit(DoubleVal& el) final {
-      res = toValueExpr(toConcreteValue(el.value(), std::int64_t{}));
+      res = toany_expr(toConcreteValue(el.value(), std::int64_t{}));
     }
 
-    void visit(NullVal&) final { res = toValueExpr(std::int64_t{0}); }
+    void visit(NullVal&) final { res = toany_expr(std::int64_t{0}); }
 
-    AnyExpr result() && { return std::move(res); }
+    any_expr result() && { return std::move(res); }
 
    private:
-    AnyExpr res;
+    any_expr res;
   };
 
   Expr* node = val.get();
@@ -1554,9 +1554,9 @@ AnyExpr convert(AnyExpr val, const IntegerArithmeticOperator&) {
   return std::move(conv).result();
 }
 
-AnyExpr convert(AnyExpr val, const StringOperator&) {
+any_expr convert(any_expr val, const StringOperator&) {
   struct StringConverter : FwdVisitor {
-    explicit StringConverter(AnyExpr val) : res(std::move(val)) {}
+    explicit StringConverter(any_expr val) : res(std::move(val)) {}
 
     void visit(Expr&) final { typeError(); }
 
@@ -1565,29 +1565,29 @@ AnyExpr convert(AnyExpr val, const StringOperator&) {
 
     // need to convert values
     void visit(BoolVal& el) final {
-      res = toValueExpr(toConcreteValue(el.value(), json::string{}));
+      res = toany_expr(toConcreteValue(el.value(), json::string{}));
     }
 
     void visit(IntVal& el) final {
-      res = toValueExpr(toConcreteValue(el.value(), json::string{}));
+      res = toany_expr(toConcreteValue(el.value(), json::string{}));
     }
 
     void visit(UintVal& el) final {
-      res = toValueExpr(toConcreteValue(el.value(), json::string{}));
+      res = toany_expr(toConcreteValue(el.value(), json::string{}));
     }
 
     void visit(DoubleVal& el) final {
-      res = toValueExpr(toConcreteValue(el.value(), json::string{}));
+      res = toany_expr(toConcreteValue(el.value(), json::string{}));
     }
 
     void visit(NullVal& el) final {
-      res = toValueExpr(toConcreteValue(el.value(), json::string{}));
+      res = toany_expr(toConcreteValue(el.value(), json::string{}));
     }
 
-    AnyExpr result() && { return std::move(res); }
+    any_expr result() && { return std::move(res); }
 
    private:
-    AnyExpr res;
+    any_expr res;
   };
 
   Expr* node = val.get();
@@ -1597,9 +1597,9 @@ AnyExpr convert(AnyExpr val, const StringOperator&) {
   return std::move(conv).result();
 }
 
-AnyExpr convert(AnyExpr val, const ArrayOperator&) {
+any_expr convert(any_expr val, const ArrayOperator&) {
   struct ArrayConverter : FwdVisitor {
-    explicit ArrayConverter(AnyExpr val) : val(std::move(val)) {}
+    explicit ArrayConverter(any_expr val) : val(std::move(val)) {}
 
     void visit(Expr&) final { typeError(); }
 
@@ -1628,10 +1628,10 @@ AnyExpr convert(AnyExpr val, const ArrayOperator&) {
     void visit(DoubleVal&) final { toArray(); }
     void visit(NullVal&) final { toArray(); }
 
-    AnyExpr result() && { return std::move(val); }
+    any_expr result() && { return std::move(val); }
 
    private:
-    AnyExpr val;
+    any_expr val;
   };
 
   Expr* node = val.get();
@@ -1681,7 +1681,7 @@ struct UnpackVisitor : FwdVisitor {
 };
 
 template <class T>
-T unpackValue(Expr& expr) {
+T unpack_value(Expr& expr) {
   UnpackVisitor<T> unpack;
 
   expr.accept(unpack);
@@ -1689,28 +1689,28 @@ T unpackValue(Expr& expr) {
 }
 
 template <class T>
-T unpackValue(ValueExpr& el) {
-  return unpackValue<T>(*el);
+T unpack_value(any_expr& el) {
+  return unpack_value<T>(*el);
 }
 
 template <class T>
-T unpackValue(ValueExpr&& el) {
-  return unpackValue<T>(*el);
+T unpack_value(any_expr&& el) {
+  return unpack_value<T>(*el);
 }
 
 //
 // Json Logic - truthy/falsy
-bool truthy(Expr& el) { return unpackValue<bool>(el); }
-bool truthy(ValueExpr& el) { return unpackValue<bool>(el); }
-bool truthy(ValueExpr&& el) { return unpackValue<bool>(std::move(el)); }
+bool truthy(Expr& el) { return unpack_value<bool>(el); }
+bool truthy(any_expr& el) { return unpack_value<bool>(el); }
+bool truthy(any_expr&& el) { return unpack_value<bool>(std::move(el)); }
 bool falsy(Expr& el) { return !truthy(el); }
-bool falsy(ValueExpr& el) { return !truthy(el); }
-bool falsy(ValueExpr&& el) { return !truthy(std::move(el)); }
+bool falsy(any_expr& el) { return !truthy(el); }
+bool falsy(any_expr&& el) { return !truthy(std::move(el)); }
 
 //
 // cloning
 
-AnyExpr cloneExpr(AnyExpr& expr);
+any_expr cloneExpr(any_expr& expr);
 
 struct ExprCloner : GVisitor<ExprCloner> {
   using base = GVisitor<ExprCloner>;
@@ -1764,7 +1764,7 @@ Expr& ExprCloner::init(Operator& src, Operator& tgt) {
 
   std::transform(src.operands().begin(), src.operands().end(),
                  std::back_inserter(children),
-                 [](AnyExpr& e) -> AnyExpr { return cloneExpr(e); });
+                 [](any_expr& e) -> any_expr { return cloneExpr(e); });
 
   tgt.set_operands(std::move(children));
   return tgt;
@@ -1780,11 +1780,11 @@ Expr& ExprCloner::init(ObjectVal& src, ObjectVal& tgt) {
   return tgt;
 }
 
-AnyExpr cloneExpr(AnyExpr& expr) {
+any_expr cloneExpr(any_expr& expr) {
   ExprCloner cloner;
 
   expr->accept(cloner);
-  return ValueExpr{cloner.result()};
+  return any_expr{cloner.result()};
 }
 
 //
@@ -1935,7 +1935,7 @@ template <class BinaryOperator>
 struct BinaryOperatorVisitor : FwdVisitor {
   using result_type = typename BinaryOperator::result_type;
 
-  BinaryOperatorVisitor(BinaryOperator oper, ValueExpr& rhsarg)
+  BinaryOperatorVisitor(BinaryOperator oper, any_expr& rhsarg)
       : op(oper), rhs(rhsarg), res() {}
 
   template <class LhsValue>
@@ -2029,7 +2029,7 @@ struct BinaryOperatorVisitor : FwdVisitor {
 
  private:
   BinaryOperator op;
-  ValueExpr& rhs;
+  any_expr& rhs;
   result_type res;
 };
 
@@ -2037,7 +2037,7 @@ struct BinaryOperatorVisitor : FwdVisitor {
 // compute and sequence functions
 
 template <class BinaryOperator>
-typename BinaryOperator::result_type compute(ValueExpr& lhs, ValueExpr& rhs,
+typename BinaryOperator::result_type compute(any_expr& lhs, any_expr& rhs,
                                              BinaryOperator op) {
   using LhsVisitor = BinaryOperatorVisitor<BinaryOperator>;
 
@@ -2274,12 +2274,12 @@ struct Calc<Add> : ArithmeticOperator {
   using ArithmeticOperator::result_type;
 
   result_type operator()(std::nullptr_t, std::nullptr_t) const {
-    return toValueExpr(nullptr);
+    return toany_expr(nullptr);
   }
 
   template <class T>
   result_type operator()(const T& lhs, const T& rhs) const {
-    return toValueExpr(lhs + rhs);
+    return toany_expr(lhs + rhs);
   }
 };
 
@@ -2288,12 +2288,12 @@ struct Calc<Sub> : ArithmeticOperator {
   using ArithmeticOperator::result_type;
 
   result_type operator()(std::nullptr_t, std::nullptr_t) const {
-    return toValueExpr(nullptr);
+    return toany_expr(nullptr);
   }
 
   template <class T>
   result_type operator()(const T& lhs, const T& rhs) const {
-    return toValueExpr(lhs - rhs);
+    return toany_expr(lhs - rhs);
   }
 };
 
@@ -2302,12 +2302,12 @@ struct Calc<Mul> : ArithmeticOperator {
   using ArithmeticOperator::result_type;
 
   result_type operator()(std::nullptr_t, std::nullptr_t) const {
-    return toValueExpr(nullptr);
+    return toany_expr(nullptr);
   }
 
   template <class T>
   result_type operator()(const T& lhs, const T& rhs) const {
-    return toValueExpr(lhs * rhs);
+    return toany_expr(lhs * rhs);
   }
 };
 
@@ -2316,21 +2316,21 @@ struct Calc<Div> : ArithmeticOperator {
   using ArithmeticOperator::result_type;
 
   result_type operator()(std::nullptr_t, std::nullptr_t) const {
-    return toValueExpr(nullptr);
+    return toany_expr(nullptr);
   }
 
   result_type operator()(double lhs, double rhs) const {
     double res = lhs / rhs;
 
     // if (isInteger(res)) return toInt(res);
-    return toValueExpr(res);
+    return toany_expr(res);
   }
 
   template <class Int_t>
   result_type operator()(Int_t lhs, Int_t rhs) const {
     if (lhs % rhs) return (*this)(double(lhs), double(rhs));
 
-    return toValueExpr(lhs / rhs);
+    return toany_expr(lhs / rhs);
   }
 };
 
@@ -2344,9 +2344,9 @@ struct Calc<Mod> : IntegerArithmeticOperator {
 
   template <class T>
   result_type operator()(const T& lhs, const T& rhs) const {
-    if (rhs == 0) return toValueExpr(nullptr);
+    if (rhs == 0) return toany_expr(nullptr);
 
-    return toValueExpr(lhs % rhs);
+    return toany_expr(lhs % rhs);
   }
 };
 
@@ -2360,7 +2360,7 @@ struct Calc<Min> : ArithmeticOperator {
 
   template <class T>
   result_type operator()(const T& lhs, const T& rhs) const {
-    return toValueExpr(std::min(lhs, rhs));
+    return toany_expr(std::min(lhs, rhs));
   }
 };
 
@@ -2374,7 +2374,7 @@ struct Calc<Max> : ArithmeticOperator {
 
   template <class T>
   result_type operator()(const T& lhs, const T& rhs) const {
-    return toValueExpr(std::max(lhs, rhs));
+    return toany_expr(std::max(lhs, rhs));
   }
 };
 
@@ -2405,7 +2405,7 @@ struct Calc<Cat> : StringOperator {
     tmp.append(lhs.begin(), lhs.end());
     tmp.append(rhs.begin(), rhs.end());
 
-    return toValueExpr(std::move(tmp));
+    return toany_expr(std::move(tmp));
   }
 };
 
@@ -2418,7 +2418,7 @@ struct Calc<In> : StringOperator  // \todo the conversion rules differ
                          const json::string& rhs) const {
     const bool res = (rhs.find(lhs) != json::string::npos);
 
-    return toValueExpr(res);
+    return toany_expr(res);
   }
 };
 
@@ -2431,7 +2431,7 @@ struct Calc<RegexMatch> : StringOperator  // \todo the conversion rules differ
                          const json::string& rhs) const {
     std::regex rgx(lhs.c_str(), lhs.size());
 
-    return toValueExpr(std::regex_search(rhs.begin(), rhs.end(), rgx));
+    return toany_expr(std::regex_search(rhs.begin(), rhs.end(), rgx));
   }
 };
 
@@ -2441,7 +2441,7 @@ struct Calc<Merge> : ArrayOperator {
 
   result_type operator()(Array* lhs, Array* rhs) const {
     // note, to use the lhs entirely, it would need to be released
-    //   from its  ValueExpr
+    //   from its  any_expr
     Array& res = deref(new Array);
 
     {
@@ -2455,12 +2455,12 @@ struct Calc<Merge> : ArrayOperator {
                    std::make_move_iterator(ropers.end()));
     }
 
-    return ValueExpr(&res);
+    return any_expr(&res);
   }
 };
 
 struct Calculator : FwdVisitor {
-  using VarAccess = std::function<ValueExpr(const json::value&, int)>;
+  using VarAccess = std::function<any_expr(const json::value&, int)>;
 
   Calculator(VarAccess varAccess, std::ostream& out)
       : vars(std::move(varAccess)), logger(out), calcres(nullptr) {}
@@ -2512,12 +2512,12 @@ struct Calculator : FwdVisitor {
   void visit(Error& n) final;
   void visit(RegexMatch& n) final;
 
-  ValueExpr eval(Expr& n);
+  any_expr eval(Expr& n);
 
  private:
   VarAccess vars;
   std::ostream& logger;
-  ValueExpr calcres;
+  any_expr calcres;
 
   Calculator(const Calculator&) = delete;
   Calculator(Calculator&&) = delete;
@@ -2553,7 +2553,7 @@ struct Calculator : FwdVisitor {
 
   template <class ValueNode>
   void _value(const ValueNode& val) {
-    calcres = toValueExpr(val.value());
+    calcres = toany_expr(val.value());
   }
 
   /// auxiliary missing method
@@ -2564,10 +2564,10 @@ struct SequenceFunction {
   SequenceFunction(Expr& e, std::ostream& logstream)
       : expr(e), logger(logstream) {}
 
-  ValueExpr operator()(ValueExpr&& elem) const {
-    ValueExpr* elptr = &elem;  // workaround, b/c unique_ptr cannot be captured
+  any_expr operator()(any_expr&& elem) const {
+    any_expr* elptr = &elem;  // workaround, b/c unique_ptr cannot be captured
 
-    Calculator sub{[elptr](const json::value& keyval, int) -> ValueExpr {
+    Calculator sub{[elptr](const json::value& keyval, int) -> any_expr {
                      if (const json::string* pkey = keyval.if_string()) {
                        const json::string& key = *pkey;
 
@@ -2582,7 +2582,7 @@ struct SequenceFunction {
                        }
                      }
 
-                     return toValueExpr(nullptr);
+                     return toany_expr(nullptr);
                    },
                    logger};
 
@@ -2597,7 +2597,7 @@ struct SequenceFunction {
 struct SequencePredicate : SequenceFunction {
   using SequenceFunction::SequenceFunction;
 
-  bool operator()(ValueExpr&& elem) const {
+  bool operator()(any_expr&& elem) const {
     return truthy(SequenceFunction::operator()(std::move(elem)));
   }
 };
@@ -2605,15 +2605,15 @@ struct SequencePredicate : SequenceFunction {
 struct SequencePredicateNondestructive : SequenceFunction {
   using SequenceFunction::SequenceFunction;
 
-  bool operator()(ValueExpr&& elem) const {
+  bool operator()(any_expr&& elem) const {
     return truthy(SequenceFunction::operator()(cloneExpr(elem)));
   }
 };
 
 /*
   template <class InputIterator, class BinaryOperation>
-  ValueExpr
-  accumulate_move(InputIterator pos, InputIterator lim, ValueExpr accu,
+  any_expr
+  accumulate_move(InputIterator pos, InputIterator lim, any_expr accu,
   BinaryOperation binop)
   {
     for ( ; pos != lim; ++pos)
@@ -2632,19 +2632,19 @@ struct SequenceReduction {
   //   g++ -std=c++17 passes in a & ref, while g++ -std=c++20 passes in a &&.
   // the templated && together with reference collapsing make the code portable
   // across standard versions.
-  template <class ValueExprT>
-  ValueExpr operator()(ValueExprT&& accu, ValueExpr elem) const {
-    ValueExpr* acptr = &accu;  // workaround, b/c unique_ptr cannot be captured
-    ValueExpr* elptr = &elem;  // workaround, b/c unique_ptr cannot be captured
+  template <class any_exprT>
+  any_expr operator()(any_exprT&& accu, any_expr elem) const {
+    any_expr* acptr = &accu;  // workaround, b/c unique_ptr cannot be captured
+    any_expr* elptr = &elem;  // workaround, b/c unique_ptr cannot be captured
 
-    Calculator sub{[acptr, elptr](const json::value& keyval, int) -> ValueExpr {
+    Calculator sub{[acptr, elptr](const json::value& keyval, int) -> any_expr {
                      if (const json::string* pkey = keyval.if_string()) {
                        if (*pkey == "current") return cloneExpr(*elptr);
 
                        if (*pkey == "accumulator") return cloneExpr(*acptr);
                      }
 
-                     return toValueExpr(nullptr);
+                     return toany_expr(nullptr);
                    },
                    logger};
 
@@ -2664,7 +2664,7 @@ ValueT Calculator::unpackOptionalArg(Operator& n, int argpos,
     return defaultVal;
   }
 
-  return unpackValue<ValueT>(*eval(n.operand(argpos)));
+  return unpack_value<ValueT>(*eval(n.operand(argpos)));
 }
 
 template <class UnaryPredicate>
@@ -2674,7 +2674,7 @@ void Calculator::unary(Operator& n, UnaryPredicate pred) {
 
   const bool res = pred(*eval(n.operand(0)));
 
-  calcres = toValueExpr(res);
+  calcres = toany_expr(res);
 }
 
 template <class BinaryOperator>
@@ -2683,16 +2683,16 @@ void Calculator::binary(Operator& n, BinaryOperator binop) {
   assert(num == 1 || num == 2);
 
   int idx = -1;
-  ValueExpr lhs;
+  any_expr lhs;
 
   if (num == 2) {
     CXX_LIKELY;
     lhs = eval(n.operand(++idx));
   } else {
-    lhs = toValueExpr(std::int64_t(0));
+    lhs = toany_expr(std::int64_t(0));
   }
 
-  ValueExpr rhs = eval(n.operand(++idx));
+  any_expr rhs = eval(n.operand(++idx));
 
   calcres = compute(lhs, rhs, binop);
 }
@@ -2703,12 +2703,12 @@ void Calculator::reduce(Operator& n, BinaryOperator op) {
   assert(num >= 1);
 
   int idx = -1;
-  ValueExpr res = eval(n.operand(++idx));
+  any_expr res = eval(n.operand(++idx));
 
   res = convert(std::move(res), op);
 
   while (idx != (num - 1)) {
-    ValueExpr rhs = eval(n.operand(++idx));
+    any_expr rhs = eval(n.operand(++idx));
 
     rhs = convert(std::move(rhs), op);
     res = compute(res, rhs, op);
@@ -2724,11 +2724,11 @@ void Calculator::evalPairShortCircuit(Operator& n, BinaryPredicate pred) {
 
   bool res = true;
   int idx = -1;
-  ValueExpr rhs = eval(n.operand(++idx));
+  any_expr rhs = eval(n.operand(++idx));
   assert(rhs.get());
 
   while (res && (idx != (num - 1))) {
-    ValueExpr lhs = std::move(rhs);
+    any_expr lhs = std::move(rhs);
     assert(lhs.get());
 
     rhs = eval(n.operand(++idx));
@@ -2737,7 +2737,7 @@ void Calculator::evalPairShortCircuit(Operator& n, BinaryPredicate pred) {
     res = compute(lhs, rhs, pred);
   }
 
-  calcres = toValueExpr(res);
+  calcres = toany_expr(res);
 }
 
 void Calculator::evalShortCircuit(Operator& n, bool val) {
@@ -2749,7 +2749,7 @@ void Calculator::evalShortCircuit(Operator& n, bool val) {
   }
 
   int idx = -1;
-  ValueExpr oper = eval(n.operand(++idx));
+  any_expr oper = eval(n.operand(++idx));
   //~ std::cerr << idx << ") " << oper << std::endl;
 
   bool found = (idx == num - 1) || (truthy(*oper) == val);
@@ -2765,8 +2765,8 @@ void Calculator::evalShortCircuit(Operator& n, bool val) {
   calcres = std::move(oper);
 }
 
-ValueExpr Calculator::eval(Expr& n) {
-  ValueExpr res;
+any_expr Calculator::eval(Expr& n) {
+  any_expr res;
 
   n.accept(*this);
   res.swap(calcres);
@@ -2825,7 +2825,7 @@ void Calculator::visit(RegexMatch& n) { binary(n, Calc<In>{}); }
 void Calculator::visit(Substr& n) {
   assert(n.num_evaluated_operands() >= 1);
 
-  json::string str = unpackValue<json::string>(*eval(n.operand(0)));
+  json::string str = unpack_value<json::string>(*eval(n.operand(0)));
   std::int64_t ofs = unpackOptionalArg<std::int64_t>(n, 1, 0);
   std::int64_t cnt = unpackOptionalArg<std::int64_t>(n, 2, 0);
 
@@ -2839,7 +2839,7 @@ void Calculator::visit(Substr& n) {
     cnt = std::max(std::int64_t(str.size()) - ofs + cnt, std::int64_t(0));
   }
 
-  calcres = toValueExpr(json::string{str.subview(ofs, cnt)});
+  calcres = toany_expr(json::string{str.subview(ofs, cnt)});
 }
 
 void Calculator::visit(Array& n) {
@@ -2850,25 +2850,25 @@ void Calculator::visit(Array& n) {
   std::transform(
       std::make_move_iterator(n.begin()), std::make_move_iterator(n.end()),
       std::back_inserter(elems),
-      [self](AnyExpr&& exp) -> ValueExpr { return self->eval(*exp); });
+      [self](any_expr&& exp) -> any_expr { return self->eval(*exp); });
 
   Array& res = deref(new Array);
 
   res.set_operands(std::move(elems));
 
-  calcres = ValueExpr(&res);
+  calcres = any_expr(&res);
 }
 
 void Calculator::visit(Merge& n) { reduce(n, Calc<Merge>{}); }
 
 void Calculator::visit(Reduce& n) {
-  ValueExpr arr = eval(n.operand(0));
+  any_expr arr = eval(n.operand(0));
   Expr& expr = n.operand(1);
-  ValueExpr accu = eval(n.operand(2));
-  ValueExpr* acptr = &accu;
+  any_expr accu = eval(n.operand(2));
+  any_expr* acptr = &accu;
 
   auto op = [&expr, acptr,
-             calclogger = &this->logger](Array& arrop) -> ValueExpr {
+             calclogger = &this->logger](Array& arrop) -> any_expr {
     // non destructive predicate is required for evaluating and copying
     return std::accumulate(std::make_move_iterator(arrop.begin()),
                            std::make_move_iterator(arrop.end()),
@@ -2877,13 +2877,13 @@ void Calculator::visit(Reduce& n) {
   };
 
   calcres =
-      with_type<Array>(arr.get(), op, []() -> ValueExpr { return nullptr; });
+      with_type<Array>(arr.get(), op, []() -> any_expr { return nullptr; });
 }
 
 void Calculator::visit(Map& n) {
-  ValueExpr arr = eval(n.operand(0));
+  any_expr arr = eval(n.operand(0));
   auto mapper = [&n, &arr,
-                 calclogger = &this->logger](Array& arrop) -> ValueExpr {
+                 calclogger = &this->logger](Array& arrop) -> any_expr {
     Expr& expr = n.operand(1);
     Operator::container_type mapped_elements;
 
@@ -2896,14 +2896,14 @@ void Calculator::visit(Map& n) {
     return std::move(arr);
   };
 
-  calcres = with_type<Array>(
-      arr.get(), mapper, []() -> ValueExpr { return ValueExpr{new Array}; });
+  calcres = with_type<Array>(arr.get(), mapper,
+                             []() -> any_expr { return any_expr{new Array}; });
 }
 
 void Calculator::visit(Filter& n) {
-  ValueExpr arr = eval(n.operand(0));
+  any_expr arr = eval(n.operand(0));
   auto filter = [&n, &arr,
-                 calclogger = &this->logger](Array& arrop) -> ValueExpr {
+                 calclogger = &this->logger](Array& arrop) -> any_expr {
     Expr& expr = n.operand(1);
     Operator::container_type filtered_elements;
 
@@ -2917,41 +2917,41 @@ void Calculator::visit(Filter& n) {
     return std::move(arr);
   };
 
-  calcres = with_type<Array>(
-      arr.get(), filter, []() -> ValueExpr { return ValueExpr{new Array}; });
+  calcres = with_type<Array>(arr.get(), filter,
+                             []() -> any_expr { return any_expr{new Array}; });
 }
 
 void Calculator::visit(All& n) {
-  ValueExpr arr = eval(n.operand(0));
+  any_expr arr = eval(n.operand(0));
   Array& elems = down_cast<Array>(*arr);  // evaluated elements
   Expr& expr = n.operand(1);
   const bool res = std::all_of(std::make_move_iterator(elems.begin()),
                                std::make_move_iterator(elems.end()),
                                SequencePredicate{expr, logger});
 
-  calcres = toValueExpr(res);
+  calcres = toany_expr(res);
 }
 
 void Calculator::visit(None& n) {
-  ValueExpr arr = eval(n.operand(0));
+  any_expr arr = eval(n.operand(0));
   Array& elems = down_cast<Array>(*arr);  // evaluated elements
   Expr& expr = n.operand(1);
   const bool res = std::none_of(std::make_move_iterator(elems.begin()),
                                 std::make_move_iterator(elems.end()),
                                 SequencePredicate{expr, logger});
 
-  calcres = toValueExpr(res);
+  calcres = toany_expr(res);
 }
 
 void Calculator::visit(Some& n) {
-  ValueExpr arr = eval(n.operand(0));
+  any_expr arr = eval(n.operand(0));
   Array& elems = down_cast<Array>(*arr);  // evaluated elements
   Expr& expr = n.operand(1);
   const bool res = std::any_of(std::make_move_iterator(elems.begin()),
                                std::make_move_iterator(elems.end()),
                                SequencePredicate{expr, logger});
 
-  calcres = toValueExpr(res);
+  calcres = toany_expr(res);
 }
 
 void Calculator::visit(Error&) { unsupported(); }
@@ -2959,19 +2959,19 @@ void Calculator::visit(Error&) { unsupported(); }
 void Calculator::visit(Var& n) {
   assert(n.num_evaluated_operands() >= 1);
 
-  AnyExpr elm = eval(n.operand(0));
+  any_expr elm = eval(n.operand(0));
   Value& val = down_cast<Value>(*elm);
 
   try {
     calcres = vars(val.toJson(), n.num());
   } catch (...) {
     calcres = (n.num_evaluated_operands() > 1) ? eval(n.operand(1))
-                                               : toValueExpr(nullptr);
+                                               : toany_expr(nullptr);
   }
 }
 
 std::size_t Calculator::missing_aux(Array& elems) {
-  auto avail = [calc = this](ValueExpr& v) -> bool {
+  auto avail = [calc = this](any_expr& v) -> bool {
     try {
       Value& val = down_cast<Value>(*v);
 
@@ -2993,7 +2993,7 @@ std::size_t Calculator::missing_aux(Array& elems) {
 }
 
 void Calculator::visit(Missing& n) {
-  ValueExpr arg = eval(n.operand(0));
+  any_expr arg = eval(n.operand(0));
   auto nonArrayHandler = [&arg, &n, calc = this]() -> Array& {
     Array& res = deref(new Array);
 
@@ -3015,8 +3015,8 @@ void Calculator::visit(Missing& n) {
 }
 
 void Calculator::visit(MissingSome& n) {
-  const std::uint64_t minreq = unpackValue<std::uint64_t>(eval(n.operand(0)));
-  ValueExpr arr = eval(n.operand(1));
+  const std::uint64_t minreq = unpack_value<std::uint64_t>(eval(n.operand(0)));
+  any_expr arr = eval(n.operand(1));
   Array& elems = down_cast<Array>(*arr);  // evaluated elements
   std::size_t avail = missing_aux(elems);
 
@@ -3029,7 +3029,7 @@ void Calculator::visit(If& n) {
   const int num = n.num_evaluated_operands();
 
   if (num == 0) {
-    calcres = toValueExpr(nullptr);
+    calcres = toany_expr(nullptr);
     return;
   }
 
@@ -3045,7 +3045,7 @@ void Calculator::visit(If& n) {
     pos += 2;
   }
 
-  calcres = (pos < num) ? eval(n.operand(pos)) : toValueExpr(nullptr);
+  calcres = (pos < num) ? eval(n.operand(pos)) : toany_expr(nullptr);
 }
 
 void Calculator::visit(Log& n) {
@@ -3064,27 +3064,27 @@ void Calculator::visit(DoubleVal& n) { _value(n); }
 void Calculator::visit(StringVal& n) { _value(n); }
 
 CXX_MAYBE_UNUSED
-ValueExpr calculate(Expr& exp, const Calculator::VarAccess& vars) {
+any_expr calculate(Expr& exp, const Calculator::VarAccess& vars) {
   Calculator calc{vars, std::cerr};
 
   return calc.eval(exp);
 }
 
 CXX_MAYBE_UNUSED
-ValueExpr calculate(AnyExpr& exp, const Calculator::VarAccess& vars) {
+any_expr calculate(any_expr& exp, const Calculator::VarAccess& vars) {
   assert(exp.get());
   return calculate(*exp, vars);
 }
 
 CXX_MAYBE_UNUSED
-ValueExpr calculate(AnyExpr& exp) {
+any_expr calculate(any_expr& exp) {
   return calculate(exp,
-                   [](const json::value&, int) -> ValueExpr { unsupported(); });
+                   [](const json::value&, int) -> any_expr { unsupported(); });
 }
 
-ValueExpr evalPath(const json::string& path, const json::object& obj) {
+any_expr evalPath(const json::string& path, const json::object& obj) {
   if (auto pos = obj.find(path); pos != obj.end())
-    return json_logic::toValueExpr(pos->value());
+    return jsonlogic::toany_expr(pos->value());
 
   if (std::size_t pos = path.find('.'); pos != json::string::npos) {
     json::string selector = path.subview(0, pos);
@@ -3097,19 +3097,19 @@ ValueExpr evalPath(const json::string& path, const json::object& obj) {
 }
 
 template <class IntT>
-ValueExpr evalIdx(IntT idx, const json::array& arr) {
-  return json_logic::toValueExpr(arr[idx]);
+any_expr evalIdx(IntT idx, const json::array& arr) {
+  return jsonlogic::toany_expr(arr[idx]);
 }
 
 CXX_MAYBE_UNUSED
-ValueExpr apply(json::value rule, json::value data) {
+any_expr apply(json::value rule, json::value data) {
   auto [ast, vars, hasComputed] = translateNode(rule);
   Calculator::VarAccess varlookup = [data](const json::value& keyval,
-                                           int) -> ValueExpr {
+                                           int) -> any_expr {
     if (const json::string* ppath = keyval.if_string()) {
       //~ std::cerr << *ppath << std::endl;
       return ppath->size() ? evalPath(*ppath, data.as_object())
-                           : json_logic::toValueExpr(data);
+                           : jsonlogic::toany_expr(data);
     }
 
     if (const std::int64_t* pidx = keyval.if_int64())
@@ -3135,7 +3135,7 @@ struct ValuePrinter : FwdVisitor {
     bool first = true;
 
     os << "[";
-    for (AnyExpr& el : n) {
+    for (any_expr& el : n) {
       if (first)
         first = false;
       else
@@ -3151,7 +3151,7 @@ struct ValuePrinter : FwdVisitor {
   std::ostream& os;
 };
 
-std::ostream& operator<<(std::ostream& os, ValueExpr& n) {
+std::ostream& operator<<(std::ostream& os, any_expr& n) {
   ValuePrinter prn{os};
 
   deref(n).accept(prn);
@@ -3169,7 +3169,7 @@ void traverseChildrenReverse(Visitor& v, const Operator& node);
 // only operators have children
 void _traverseChildren(Visitor& v, Operator::const_iterator aa,
                        Operator::const_iterator zz) {
-  std::for_each(aa, zz, [&v](const AnyExpr& e) -> void { e->accept(v); });
+  std::for_each(aa, zz, [&v](const any_expr& e) -> void { e->accept(v); });
 }
 
 void traverseChildren(Visitor& v, const Operator& node) {
@@ -3186,7 +3186,7 @@ void traverseChildrenReverse(Visitor& v, const Operator& node) {
   Operator::const_reverse_iterator zz = node.crend();
   Operator::const_reverse_iterator aa = zz - node.num_evaluated_operands();
 
-  std::for_each(aa, zz, [&v](const AnyExpr& e) -> void { e->accept(v); });
+  std::for_each(aa, zz, [&v](const any_expr& e) -> void { e->accept(v); });
 }
 
 namespace {

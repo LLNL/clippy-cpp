@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
   // we need to make a copy here because translateNode modifies the object
   boost::json::object exp2(expression);
   auto [_a /*unused*/, vars, _b /*unused*/] =
-      json_logic::translateNode(exp2["rule"]);
+      jsonlogic::translateNode(exp2["rule"]);
   std::cerr << "post-translate expression: " << expression << std::endl;
   std::cerr << "post-translate expression['rule']: " << expression["rule"]
             << std::endl;
@@ -82,9 +82,9 @@ int main(int argc, char **argv) {
       std::cerr << "    apply_jl: var: " << var << " val: " << val << std::endl;
     }
 
-    json_logic::ValueExpr res = json_logic::apply(expression["rule"], data);
+    jsonlogic::any_expr res = jsonlogic::apply(expression["rule"], data);
     std::cerr << "    apply_jl: res: " << res << std::endl;
-    return json_logic::unpackValue<bool>(res);
+    return jsonlogic::unpack_value<bool>(res);
   };
 
   std::string tail_sel = tailsel_opt.value();

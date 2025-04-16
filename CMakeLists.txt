@@ -8,6 +8,11 @@ cmake_minimum_required(VERSION 3.14)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(ALLOW_DUPLICATE_CUSTOM_TARGETS TRUE)
 
+# Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24:
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+cmake_policy(SET CMP0135 NEW)
+endif()
+
 project(CLIPPy
     VERSION 0.2
     DESCRIPTION "Command Line Interface Plus Python"
@@ -87,11 +92,25 @@ FetchContent_MakeAvailable(Boost)
 
 #
 # JSONLogic
-FetchContent_Declare(jsonlogic
-    GIT_REPOSITORY https://github.com/LLNL/jsonlogic.git
-    GIT_TAG master
-)
-FetchContent_MakeAvailable(jsonlogic)
+# find_package(jsonlogic QUIET)
+# if (NOT jsonlogic_FOUND)
+#     message(STATUS "jsonlogic not found, doing stuff")
+    set(Boost_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/boost-install) # needed for jsonlogic
+
+    FetchContent_Declare(jsonlogic
+        GIT_REPOSITORY https://github.com/LLNL/jsonlogic.git
+        GIT_TAG master
+        SOURCE_SUBDIR cpp
+    )
+    # set(jsonlogic_INCLUDE_DIR ${jsonlogic_SOURCE_DIR}/cpp/include/jsonlogic)
+    FetchContent_MakeAvailable(jsonlogic)
+    message(STATUS "jsonlogic source dir: ${jsonlogic_SOURCE_DIR}")
+
+    
+# else()
+# message(STATUS "jsonlogic found, weird")
+
+# endif()
 
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)

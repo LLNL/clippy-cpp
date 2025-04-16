@@ -12,7 +12,7 @@ int main() {
   std::cout << json_blob << std::endl;
   auto data = boost::json::parse(json_blob).as_object();
   auto [_a /*unused*/, vars, _b /*unused*/] =
-      json_logic::translateNode(data["rule"]);
+      jsonlogic::translateNode(data["rule"]);
 
   for (auto &v : vars) {
     std::cout << v << std::endl;

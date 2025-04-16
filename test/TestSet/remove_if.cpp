@@ -34,8 +34,8 @@ int main(int argc, char **argv) {
   auto apply_jl = [&expression](int value) {
     boostjsn::object data;
     data["value"] = value;
-    json_logic::ValueExpr res = json_logic::apply(expression["rule"], data);
-    return json_logic::unpackValue<bool>(res);
+    jsonlogic::any_expr res = jsonlogic::apply(expression["rule"], data);
+    return jsonlogic::unpack_value<bool>(res);
   };
 
   for (auto first = the_set.begin(), last = the_set.end(); first != last;) {

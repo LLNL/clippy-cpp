@@ -3,13 +3,14 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "clippy/clippy-eval.hpp"
-#include "testgraph.hpp"
 #include <algorithm>
 #include <boost/json.hpp>
 #include <clippy/clippy.hpp>
 #include <iostream>
 #include <list>
+
+#include "clippy/clippy-eval.hpp"
+#include "testgraph.hpp"
 
 static const std::string method_name = "add_node";
 static const std::string state_name = "INTERNAL";
@@ -39,8 +40,8 @@ int main(int argc, char **argv) {
     data["src"] = value.first;
     data["dst"] = value.second;
     data["loc"] = boost::json::value_from(loc);
-    json_logic::ValueExpr res = json_logic::apply(expression["rule"], data);
-    return json_logic::unpackValue<bool>(res);
+    jsonlogic::any_expr res = jsonlogic::apply(expression["rule"], data);
+    return jsonlogic::unpack_value<bool>(res);
   };
 
   the_graph.for_all_edges(apply_jl);
