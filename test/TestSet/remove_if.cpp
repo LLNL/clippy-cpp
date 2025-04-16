@@ -3,12 +3,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include "clippy/clippy-eval.hpp"
 #include <algorithm>
 #include <boost/json.hpp>
 #include <clippy/clippy.hpp>
 #include <iostream>
 #include <set>
+
+#include "clippy/clippy-eval.hpp"
 
 namespace boostjsn = boost::json;
 

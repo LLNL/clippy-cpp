@@ -11,4 +11,6 @@ __pycache__
 testbracket
 testmvmap
 testdf
-testgraph
+test/TestGraph/testgraph
+test/include/wheredev
+a.out
