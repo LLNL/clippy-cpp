@@ -7,9 +7,9 @@
 #include <boost/json.hpp>
 #include <clippy/clippy.hpp>
 #include <iostream>
+#include <jsonlogic/src.hpp>
 #include <list>
 
-#include "clippy/clippy-eval.hpp"
 #include "testgraph.hpp"
 
 static const std::string method_name = "add_node";

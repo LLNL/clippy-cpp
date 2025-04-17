@@ -7,8 +7,8 @@
 #include <boost/json.hpp>
 #include <clippy/clippy.hpp>
 #include <iostream>
+#include <jsonlogic/src.hpp>
 
-#include "clippy/clippy-eval.hpp"
 #include "clippy/selector.hpp"
 #include "testgraph.hpp"
 

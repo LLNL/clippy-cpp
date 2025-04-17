@@ -4,8 +4,7 @@
 #include <boost/lexical_cast.hpp>
 #include <fstream>
 #include <iostream>
-
-#include "clippy/clippy-eval.hpp"
+#include <jsonlogic/src.hpp>
 
 namespace bjsn = boost::json;
 

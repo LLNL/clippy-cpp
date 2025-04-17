@@ -1,9 +1,8 @@
 #include <boost/json.hpp>
 #include <boost/json/src.hpp>
 #include <iostream>
+#include <jsonlogic/src.hpp>
 #include <string>
-
-#include "clippy/clippy-eval.hpp"
 
 static const std::string json_blob =
     R"({"rule":{"and":[{"<":[{"var":"temp"},110]},{"==":[{"var":"pie.filling"},"apple"]}]},"data":{"temp":100,"pie":{"filling":"apple"}},"expected":true})";

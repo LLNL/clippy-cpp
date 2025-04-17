@@ -10,7 +10,7 @@
 #include "dataframe.hpp"
 
 // use clippy-eval's conversion functions
-#include <clippy/clippy-eval.hpp>
+#include <jsonlogic/src.hpp>
 
 namespace experimental {
 std::string OTHER_COLUMN = "__other_column%%";

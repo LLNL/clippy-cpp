@@ -7,9 +7,8 @@
 #include <boost/json.hpp>
 #include <clippy/clippy.hpp>
 #include <iostream>
+#include <jsonlogic/src.hpp>
 #include <set>
-
-#include "clippy/clippy-eval.hpp"
 
 namespace boostjsn = boost::json;
 

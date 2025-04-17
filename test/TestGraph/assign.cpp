@@ -8,9 +8,9 @@
 #include <boost/json.hpp>
 #include <clippy/clippy.hpp>
 #include <iostream>
+#include <jsonlogic/src.hpp>
 #include <queue>
 
-#include "clippy/clippy-eval.hpp"
 #include "clippy/selector.hpp"
 #include "testgraph.hpp"
 #include "where.cpp"
