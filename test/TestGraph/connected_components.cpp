@@ -8,9 +8,9 @@
 #include <boost/json.hpp>
 #include <clippy/clippy.hpp>
 #include <iostream>
+#include <jsonlogic/src.hpp>
 #include <queue>
 
-#include "clippy/clippy-eval.hpp"
 #include "testgraph.hpp"
 
 static const std::string method_name = "connected_components";

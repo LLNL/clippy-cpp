@@ -13,10 +13,14 @@ function ( add_test class_name method_name )
   # target_include_directories(${target} PRIVATE ${Boost_INCLUDE_DIRS})
   include_directories(${CMAKE_CURRENT_SOURCE_DIR} include/)
   set_target_properties(${target} PROPERTIES OUTPUT_NAME "${method_name}" )
-  target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/include ${BOOST_INCLUDE_DIRS} include/)
+  target_include_directories(${target} PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+    ${BOOST_INCLUDE_DIRS}
+    include/ 
+    ${jsonlogic_SOURCE_DIR}/cpp/include
+  )
   target_link_libraries(${target} PRIVATE Boost::json)
 endfunction()
-
 
 
 add_subdirectory(TestBag)
