@@ -7,7 +7,6 @@ CMakeDoxygenDefaults.cmake
 DartConfiguration.tcl
 __pycache__
 /.vscode
-/.devcontainer
 *.dSYM
 testbracket
 testmvmap

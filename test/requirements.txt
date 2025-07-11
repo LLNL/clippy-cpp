@@ -1,1 +1,2 @@
-semver >= 3.0
+llnl-clippy >= 0.4
+pytest>=7,<8

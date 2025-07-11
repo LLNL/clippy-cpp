@@ -3,7 +3,7 @@ import sys
 
 import clippy
 from clippy.error import ClippyValidationError, ClippyInvalidSelectorError
-from clippy.expressions import Selector
+from clippy.selectors import Selector
 
 import logging
 
