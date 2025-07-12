@@ -1,11 +1,12 @@
 #include <boost/json.hpp>
 #include <boost/json/src.hpp>
 #include <iostream>
+#include <jsonlogic/src.hpp>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
-#include "clippy/clippy-eval.hpp"
 #include "clippy/selector.hpp"
 #include "testgraph.hpp"
 
@@ -17,16 +18,27 @@ auto parse_where_expression(M& mvmap_, boost::json::object& expression,
   boost::json::object exp2(expression);
 
   // boost::json::object submission_data{};
-  auto [_a /*unused*/, vars, _b /*unused*/] =
-      json_logic::translateNode(exp2["rule"]);
+  std::vector<boost::json::string> vars;
+  jsonlogic::any_expr expression_rule_;
+
+  // we use expression_rule_ (and expression_rule; see below) in order to avoid
+  // having to recompute this every time we call the lambda.
+  std::tie(expression_rule_, vars, std::ignore) =
+      jsonlogic::create_logic(exp2["rule"]);
+
+  // this works around a deficiency in C++ compilers where
+  // unique pointers moved into a lambda cannot be moved into
+  // an std::function.
+  jsonlogic::expr* rawexpr = expression_rule_.release();
+  std::shared_ptr<jsonlogic::expr> expression_rule{rawexpr};
 
   std::cerr << "parse_where: # of vars: " << vars.size() << std::endl;
   for (const auto& var : vars) {
     std::cerr << "  apply_jl var dump: var: " << var << std::endl;
   }
 
-  auto apply_jl = [&expression, vars, &mvmap_,
-                   &submission_data](mvmap::locator loc) {
+  auto apply_jl = [&expression, vars, expression_rule, &mvmap_,
+                   &submission_data](mvmap::locator loc) mutable {
     std::cerr << "    apply_jl:  # of vars: " << vars.size() << std::endl;
     for (const auto& var : vars) {
       std::cerr << "    apply_jl: var: " << var << std::endl;
@@ -62,10 +74,10 @@ auto parse_where_expression(M& mvmap_, boost::json::object& expression,
     }
     std::cerr << "    apply_jl: submission_data: " << submission_data
               << std::endl;
-    json_logic::ValueExpr res =
-        json_logic::apply(expression["rule"], submission_data);
+    jsonlogic::any_expr res = jsonlogic::apply(
+        *expression_rule, jsonlogic::data_accessor(submission_data));
     std::cerr << "    apply_jl: res: " << res << std::endl;
-    return json_logic::unpackValue<bool>(res);
+    return jsonlogic::unpack_value<bool>(res);
   };
 
   return apply_jl;
@@ -78,7 +90,7 @@ std::vector<testgraph::node_t> where_nodes(const testgraph::testgraph& g,
 
   std::cerr << "  where: expression: " << expression << std::endl;
   // auto [_a /*unused*/, vars, _b /*unused*/] =
-  //     json_logic::translateNode(exp2["rule"]);
+  //     jsonlogic::translateNode(exp2["rule"]);
 
   // auto nodemap = g.nodemap();
   // boost::json::object submission_data{};
@@ -115,10 +127,10 @@ std::vector<testgraph::node_t> where_nodes(const testgraph::testgraph& g,
   //     }
   //   }
 
-  //   json_logic::ValueExpr res =
-  //       json_logic::apply(expression["rule"], submission_data);
+  //   jsonlogic::any_expr res =
+  //       jsonlogic::apply(expression["rule"], submission_data);
   //   std::cerr << "    apply_jl: res: " << res << std::endl;
-  //   return json_logic::unpackValue<bool>(res);
+  //   return jsonlogic::unpack_value<bool>(res);
   // };
 
   auto nodemap = g.nodemap();

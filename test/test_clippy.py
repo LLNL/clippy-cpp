@@ -1,9 +1,12 @@
+# This should mirror test_clippy.py from the llnl-clippy repo.
 import pytest
 import sys
 
+sys.path.append("src")
+
+import jsonlogic as jl
 import clippy
 from clippy.error import ClippyValidationError, ClippyInvalidSelectorError
-from clippy.expressions import Selector
 
 import logging
 
@@ -31,6 +34,11 @@ def testsel():
     return clippy.TestSelector()
 
 
+@pytest.fixture()
+def testgraph():
+    return clippy.TestGraph()
+
+
 def test_imports():
     assert "TestBag" in clippy.__dict__
 
@@ -47,6 +55,12 @@ def test_bag(testbag):
     assert testbag.size() == 2
     testbag.remove(99)
     assert testbag.size() == 2
+
+
+def test_clippy_call_with_string(testfun):
+    assert testfun.call_with_string("Seth") == "Howdy, Seth"
+    with pytest.raises(ClippyValidationError):
+        testfun.call_with_string()
 
 
 def test_expression_gt_gte(testbag):
@@ -127,12 +141,6 @@ def test_expression_mod(testbag):
 #     assert testbag.size() == 2
 
 
-def test_clippy_call_with_string(testfun):
-    assert testfun.call_with_string("Seth") == "Howdy, Seth"
-    with pytest.raises(ClippyValidationError):
-        testfun.call_with_string()
-
-
 def test_clippy_returns_int(testfun):
     assert testfun.returns_int() == 42
 
@@ -173,11 +181,25 @@ def test_selectors(testsel):
     assert testsel.nodes.b.__doc__ == "docstring for nodes.b"
     assert testsel.nodes.b.c.__doc__ == "docstring for nodes.b.c"
 
-    assert isinstance(testsel.nodes.b, Selector)
-    assert isinstance(testsel.nodes.b.c, Selector)
+    assert isinstance(testsel.nodes.b, jl.Variable)
+    assert isinstance(testsel.nodes.b.c, jl.Variable)
 
     with pytest.raises(ClippyInvalidSelectorError):
         testsel.add(testsel.nodes, "_bad", desc="this is a bad selector name")
 
     # with pytest.raises(ClippyInvalidSelectorError):
     #     testsel.add(testsel, 'bad', desc="this is a top-level selector")
+
+
+def test_graph(testgraph):
+    testgraph.add_edge("a", "b").add_edge("b", "c").add_edge("a", "c").add_edge(
+        "c", "d"
+    ).add_edge("d", "e").add_edge("e", "f").add_edge("f", "g").add_edge("e", "g")
+
+    assert testgraph.nv() == 7
+    assert testgraph.ne() == 8
+
+    testgraph.add_series(testgraph.node, "degree", desc="node degrees")
+    testgraph.degree(testgraph.node.degree)
+    c_e_only = testgraph.dump2(testgraph.node.degree, where=testgraph.node.degree > 2)
+    assert "c" in c_e_only and "e" in c_e_only and len(c_e_only) == 2

@@ -1,9 +1,8 @@
 #include <boost/json.hpp>
 #include <boost/json/src.hpp>
 #include <iostream>
+#include <jsonlogic/src.hpp>
 #include <string>
-
-#include "clippy/clippy-eval.hpp"
 
 static const std::string json_blob =
     R"({"rule":{"and":[{"<":[{"var":"temp"},110]},{"==":[{"var":"pie.filling"},"apple"]}]},"data":{"temp":100,"pie":{"filling":"apple"}},"expected":true})";
@@ -12,7 +11,7 @@ int main() {
   std::cout << json_blob << std::endl;
   auto data = boost::json::parse(json_blob).as_object();
   auto [_a /*unused*/, vars, _b /*unused*/] =
-      json_logic::translateNode(data["rule"]);
+      jsonlogic::translateNode(data["rule"]);
 
   for (auto &v : vars) {
     std::cout << v << std::endl;
