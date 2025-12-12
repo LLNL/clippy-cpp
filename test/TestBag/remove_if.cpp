@@ -32,11 +32,12 @@ int main(int argc, char **argv) {
 
   //
   // Expression here
-  auto apply_jl = [&expression](int value) {
+  jsonlogic::logic_rule jlrule = jsonlogic::create_logic(expression["rule"]);
+
+  auto apply_jl = [&jlrule](int value) {
     boostjsn::object data;
     data["value"] = value;
-    jsonlogic::any_expr res = jsonlogic::apply(expression["rule"], data);
-    return jsonlogic::unpack_value<bool>(res);
+    return truthy(jlrule.apply(jsonlogic::json_accessor(std::move(data))));
   };
 
   the_bag.remove_if(apply_jl);

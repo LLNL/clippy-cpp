@@ -29,12 +29,12 @@ int main(int argc, char **argv) {
   auto the_set = clip.get_state<std::set<int>>(state_name);
 
   //
+  //
   // Expression here
-  auto apply_jl = [&expression](int value) {
-    boostjsn::object data;
-    data["value"] = value;
-    jsonlogic::any_expr res = jsonlogic::apply(expression["rule"], data);
-    return jsonlogic::unpack_value<bool>(res);
+  jsonlogic::logic_rule jlrule = jsonlogic::create_logic(expression["rule"]);
+
+  auto apply_jl = [&jlrule](int value) {
+    return truthy(jlrule.apply(jsonlogic::json_accessor({{"value", value}})));
   };
 
   for (auto first = the_set.begin(), last = the_set.end(); first != last;) {

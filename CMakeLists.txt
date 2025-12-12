@@ -100,7 +100,8 @@ FetchContent_MakeAvailable(Boost)
 
     FetchContent_Declare(jsonlogic
         GIT_REPOSITORY https://github.com/LLNL/jsonlogic.git
-        GIT_TAG v0.1.0
+        GIT_TAG nojson
+	# was:        GIT_TAG v0.1.0
         SOURCE_SUBDIR cpp
     )
     # set(jsonlogic_INCLUDE_DIR ${jsonlogic_SOURCE_DIR}/cpp/include/jsonlogic)
