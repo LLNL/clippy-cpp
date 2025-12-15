@@ -14,7 +14,7 @@ cmake_policy(SET CMP0135 NEW)
 endif()
 
 project(CLIPPy
-    VERSION 0.2
+    VERSION 0.5
     DESCRIPTION "Command Line Interface Plus Python"
     LANGUAGES CXX)
 
@@ -93,25 +93,18 @@ FetchContent_MakeAvailable(Boost)
 
 #
 # JSONLogic
-# find_package(jsonlogic QUIET)
-# if (NOT jsonlogic_FOUND)
-#     message(STATUS "jsonlogic not found, doing stuff")
-    set(Boost_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/boost-install) # needed for jsonlogic
+set(Boost_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/boost-install) # needed for jsonlogic
 
-    FetchContent_Declare(jsonlogic
-        GIT_REPOSITORY https://github.com/LLNL/jsonlogic.git
-        GIT_TAG nojson
-        SOURCE_SUBDIR cpp
-    )
-    # set(jsonlogic_INCLUDE_DIR ${jsonlogic_SOURCE_DIR}/cpp/include/jsonlogic)
-    FetchContent_MakeAvailable(jsonlogic)
-    message(STATUS "jsonlogic source dir: ${jsonlogic_SOURCE_DIR}")
+FetchContent_Declare(jsonlogic
+    GIT_REPOSITORY https://github.com/LLNL/jsonlogic.git
+    GIT_TAG v0.2.0
+    SOURCE_SUBDIR cpp
+)
+# set(jsonlogic_INCLUDE_DIR ${jsonlogic_SOURCE_DIR}/cpp/include/jsonlogic)
+FetchContent_MakeAvailable(jsonlogic)
+message(STATUS "jsonlogic source dir: ${jsonlogic_SOURCE_DIR}")
 
     
-# else()
-# message(STATUS "jsonlogic found, weird")
-
-# endif()
 
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
