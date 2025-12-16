@@ -35,8 +35,6 @@ int main(int argc, char **argv) {
   auto apply_jl = [&jlrule](int value) {
     boostjsn::object data;
     data["value"] = value;
-    auto jl_rule_val = expression["rule"];
-    auto jlrule = jsonlogic::create_logic(jl_rule_val);
     auto res = jlrule.apply(jsonlogic::json_accessor(data));
     return jsonlogic::unpack_value<bool>(res);
   };
