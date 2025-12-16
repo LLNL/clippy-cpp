@@ -16,7 +16,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest git+https://github.com/llnl/clippy@master
+          # python -m pip install pytest git+https://github.com/llnl/clippy@master
+          python -m pip install pytest git+https://github.com/llnl/clippy@sbromberger/stream-stderr
 
 
       - name: Install Boost
@@ -47,14 +48,15 @@ jobs:
           # git clone https://github.com/LLNL/clippy-cpp --branch $GITHUB_HEAD_REF $TMPDIR
           
           mkdir -p build
-          cd build && cmake -DBOOST_ROOT=$BOOST_ROOT .. && make && cd ..
+          cd build && cmake -DMODERN_CMAKE_BUILD_TESTING=ON -DBUILD_TESTING=ON -DBOOST_ROOT=$BOOST_ROOT .. && make && cd ..
           ls -l build/test
           BACKEND=$PWD/build/test
           echo "BACKEND=$BACKEND" >> $GITHUB_ENV
 
       - name: Run Python test framework
         env:
-          CLIPPY_BACKEND_PATH: ${{ env.BACKEND }}
+          CLIPPY_BACKEND_PATH: ${{ github.workspace }}/build/test
+          # CLIPPY_BACKEND_PATH: ${{ env.BACKEND }}
         run: |
-          echo "backend = $BACKEND"
+          echo "backend = $CLIPPY_BACKEND_PATH"
           pytest .

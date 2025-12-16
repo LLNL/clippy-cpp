@@ -1,3 +1,6 @@
+set(CMAKE_BUILD_TYPE Debug)
+
+
 add_test(TestGraph __init__)
 add_test(TestGraph __str__)
 # add_test(TestGraph assign)
