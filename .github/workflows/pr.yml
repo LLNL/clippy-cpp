@@ -54,7 +54,8 @@ jobs:
 
       - name: Run Python test framework
         env:
-          CLIPPY_BACKEND_PATH: ${{ env.BACKEND }}
+          CLIPPY_BACKEND_PATH: $PWD/build/test
+          # CLIPPY_BACKEND_PATH: ${{ env.BACKEND }}
         run: |
-          echo "backend = $BACKEND"
+          echo "backend = $CLIPPY_BACKEND_PATH"
           pytest .
