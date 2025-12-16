@@ -30,7 +30,9 @@ int main(int argc, char **argv) {
 
   //
   // Expression here
-  auto apply_jl = [&expression](int value) {
+  jsonlogic::logic_rule jlrule = jsonlogic::create_logic(expression["rule"]);
+
+  auto apply_jl = [&jlrule](int value) {
     boostjsn::object data;
     data["value"] = value;
     auto jl_rule_val = expression["rule"];
