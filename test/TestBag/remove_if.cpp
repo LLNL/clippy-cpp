@@ -3,10 +3,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include <algorithm>
 #include <boost/json.hpp>
 #include <clippy/clippy.hpp>
-#include <iostream>
 #include <jsonlogic/src.hpp>
 #include <list>
 // #include <logic.hpp>
@@ -35,7 +33,9 @@ int main(int argc, char **argv) {
   auto apply_jl = [&expression](int value) {
     boostjsn::object data;
     data["value"] = value;
-    jsonlogic::any_expr res = jsonlogic::apply(expression["rule"], data);
+    auto jl_rule_val = expression["rule"];
+    auto jlrule = jsonlogic::create_logic(jl_rule_val);
+    auto res = jlrule.apply(jsonlogic::json_accessor(data));
     return jsonlogic::unpack_value<bool>(res);
   };
 

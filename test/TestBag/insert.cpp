@@ -5,9 +5,6 @@
 
 #include "clippy/clippy.hpp"
 #include <boost/json.hpp>
-#include <iostream>
-
-namespace boostjsn = boost::json;
 
 static const std::string class_name = "ClippyBag";
 static const std::string method_name = "insert";
